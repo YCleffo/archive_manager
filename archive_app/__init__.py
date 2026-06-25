@@ -1,3 +1,3 @@
-"""Python Archive Manager."""
+"""Менеджер файлов (Архиватор) на Python."""
 
 __version__ = "1.0.0"

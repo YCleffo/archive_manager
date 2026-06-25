@@ -1,1 +1,1 @@
-"""PySide6 widgets used by Archive Manager."""
+"""Виджеты PySide6, используемые менеджером архивов."""
