@@ -74,13 +74,29 @@ pyinstaller ^
     --windowed ^
     --name "%APP_NAME%" ^
     --icon "assets\app.ico" ^
-    --manifest "packaging\windows\app.manifest" ^
-    --version-file "packaging\windows\version_info.txt" ^
-    --add-data "assets\app.ico;assets" ^
+    --manifest "assets\app.manifest" ^
+    --version-file "assets\version_info.txt" ^
     --collect-binaries imageio_ffmpeg ^
     --collect-data imageio_ffmpeg ^
     --hidden-import pillow_heif ^
     --hidden-import pillow_heif._pillow_heif ^
+    --hidden-import win32com ^
+    --hidden-import win32com.shell ^
+    --hidden-import win32com.server ^
+    --hidden-import pythoncom ^
+    --hidden-import pywintypes ^
+    --exclude-module pwd ^
+    --exclude-module grp ^
+    --exclude-module posix ^
+    --exclude-module resource ^
+    --exclude-module _posixsubprocess ^
+    --exclude-module fcntl ^
+    --exclude-module termios ^
+    --exclude-module _scproxy ^
+    --exclude-module gi ^
+    --exclude-module Foundation ^
+    --exclude-module java ^
+    --exclude-module vms_lib ^
     %FFMPEG_BINARY_ARG% ^
     main.py
 

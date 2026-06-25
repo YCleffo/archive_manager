@@ -3,3 +3,6 @@ send2trash>=1.8.3
 imageio-ffmpeg>=0.5.1
 Pillow>=10.0
 pillow-heif>=0.16.0
+olefile>=0.47
+defusedxml>=0.7.1
+pywin32>=306; platform_system=="Windows"
