@@ -16,7 +16,7 @@ def _is_same_or_inside(child: Path, parent: Path) -> bool:
     parent = parent.resolve()
     return child == parent or parent in child.parents
 
-def _is_hidden_or_system(path: Path) -> bool:
+def is_hidden_or_system(path: Path) -> bool:
     if path.name.startswith("."):
         return True
     try:
@@ -62,7 +62,7 @@ def list_directory(path: Path) -> list[FileEntry]:
     path = Path(path).expanduser().resolve()
     entries: list[FileEntry] = []
     for child in path.iterdir():
-        if _is_hidden_or_system(child):
+        if is_hidden_or_system(child):
             continue
         try:
             stat = child.stat()

@@ -76,7 +76,7 @@ def parse_extensions(raw: str) -> set[str]:
         result.add(ext)
     return result
 
-def _is_hidden_or_system(path: Path) -> bool:
+def is_hidden_or_system(path: Path) -> bool:
     if path.name.startswith("."):
         return True
     try:
@@ -120,7 +120,7 @@ def search_files(
         if cancel_event and cancel_event.is_set():
             return
             
-        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIR_NAMES and not os.path.islink(os.path.join(dirpath, d)) and not _is_hidden_or_system(Path(dirpath) / d)]
+        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIR_NAMES and not os.path.islink(os.path.join(dirpath, d)) and not is_hidden_or_system(Path(dirpath) / d)]
 
         for name in dirnames + filenames:
             if cancel_event and cancel_event.is_set():
@@ -130,7 +130,7 @@ def search_files(
 
             try:
                 path = Path(dirpath) / name
-                if path.is_symlink() or _is_hidden_or_system(path):
+                if path.is_symlink() or is_hidden_or_system(path):
                     continue
 
                 is_dir = path.is_dir()

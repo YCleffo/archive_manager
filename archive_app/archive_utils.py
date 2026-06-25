@@ -158,7 +158,13 @@ def extract_archive(
                 if progress:
                     progress(member.filename)
                 
-                archive.extract(member, destination)
+                if member.is_dir():
+                    target.mkdir(parents=True, exist_ok=True)
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with archive.open(member, "r") as src, open(target, "wb") as dst:
+                        import shutil
+                        shutil.copyfileobj(src, dst)
         return destination
 
     if tarfile.is_tarfile(archive_path):

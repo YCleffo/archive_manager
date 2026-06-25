@@ -259,26 +259,31 @@ QListView::item:selected {
 }
 
 QListView#PathCompleterPopup {
-    background: #f5f7fa;
+    background: #ffffff;
+    color: #1d2733;
     border: 1px solid #d8e0ea;
-    border-radius: 0;
-    padding: 6px;
+    border-radius: 8px;
+    padding: 4px;
     outline: 0;
+    selection-background-color: #edf4ff;
+    selection-color: #172033;
 }
 
 QListView#PathCompleterPopup::item {
+    min-height: 28px;
     border-radius: 6px;
-    padding: 8px 12px;
-    margin: 2px 0;
+    padding: 6px 10px;
+    margin: 1px 0;
 }
 
 QListView#PathCompleterPopup::item:hover {
-    background: #e8eef6;
+    background: #f3f7fb;
+    color: #172033;
 }
 
 QListView#PathCompleterPopup::item:selected {
-    background: #2f6fbd;
-    color: #ffffff;
+    background: #edf4ff;
+    color: #172033;
 }
 """
 

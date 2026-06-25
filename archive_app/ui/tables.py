@@ -296,6 +296,7 @@ class FileTable(QTableWidget):
 
         self.cellDoubleClicked.connect(on_cell_double_clicked)
         self.cellEntered.connect(self._on_cell_entered)
+        self.itemSelectionChanged.connect(self.selection_changed.emit)
 
     def set_entries(self, entries: list[FileEntry]) -> None:
         self.setUpdatesEnabled(False)
@@ -306,6 +307,8 @@ class FileTable(QTableWidget):
         self.setSortingEnabled(True)
         self.sortItems(0, Qt.SortOrder.AscendingOrder)
         self.setUpdatesEnabled(True)
+        self.clearSelection()
+        self.selection_changed.emit()
 
     def selected_paths(self) -> list[Path]:
         rows = sorted({index.row() for index in self.selectionModel().selectedRows()})
