@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QImage, QPixmap, QResizeEvent, QTextOption
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QImage, QMouseEvent, QPixmap, QResizeEvent, QTextOption
 from PySide6.QtWidgets import (
     QFrame,
     QLabel,
@@ -16,7 +16,38 @@ from ..preview_utils import PreviewResult
 from .theme import make_interactive
 
 
+class PreviewImageLabel(QLabel):
+    clicked = Signal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._clickable = False
+
+    def set_clickable(self, enabled: bool) -> None:
+        self._clickable = enabled
+        self.setProperty("clickable", enabled)
+        self.setCursor(
+            Qt.CursorShape.PointingHandCursor if enabled else Qt.CursorShape.ArrowCursor
+        )
+        self.setToolTip(
+            "Открыть выбранный файл в стандартной программе"
+            if enabled
+            else "Выберите файл одним кликом"
+        )
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self._clickable and event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+
 class PreviewPanel(QFrame):
+    open_requested = Signal()
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("PreviewPanel")
@@ -33,7 +64,7 @@ class PreviewPanel(QFrame):
         title.setObjectName("PreviewPanelTitle")
         layout.addWidget(title)
 
-        self.image_label = QLabel(self)
+        self.image_label = PreviewImageLabel(self)
         self.image_label.setObjectName("PreviewImage")
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.image_label.setMinimumHeight(220)
@@ -42,6 +73,7 @@ class PreviewPanel(QFrame):
         )
         self.image_label.setText("Выберите файл одним кликом")
         self.image_label.setWordWrap(True)
+        self.image_label.clicked.connect(self.open_requested)
         layout.addWidget(self.image_label)
 
         self.name_label = QLabel("Ничего не выбрано", self)
@@ -54,24 +86,36 @@ class PreviewPanel(QFrame):
         self.details_text.setReadOnly(True)
         self.details_text.setFrameShape(QFrame.Shape.NoFrame)
         self.details_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-        self.details_text.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
-        self.details_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.details_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.details_text.setWordWrapMode(
+            QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere
+        )
+        self.details_text.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.details_text.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
         self.details_text.setMinimumHeight(150)
         self.details_text.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
         self.details_text.setPlainText(
             "Один клик показывает миниатюру.\n"
-            "Двойной клик открывает файл в стандартной программе."
+            "Двойной клик открывает файл в стандартной программе.\n"
+            "Клик по области превью тоже открывает выбранный файл."
         )
         layout.addWidget(self.details_text, 1)
 
         self.open_button = QPushButton("Открыть в стандартной программе", self)
         self.open_button.setObjectName("PreviewOpenButton")
-        make_interactive(self.open_button, "Открыть выбранный файл системной программой")
+        make_interactive(
+            self.open_button, "Открыть выбранный файл системной программой"
+        )
         self.open_button.setEnabled(False)
+        self.open_button.clicked.connect(self.open_requested)
         layout.addWidget(self.open_button)
+
+        self.image_label.set_clickable(False)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -81,10 +125,12 @@ class PreviewPanel(QFrame):
         self._current_image = None
         self.image_label.setPixmap(QPixmap())
         self.image_label.setText(message)
+        self.image_label.set_clickable(False)
         self.name_label.setText("Ничего не выбрано")
         self.details_text.setPlainText(
             "Один клик показывает миниатюру.\n"
-            "Двойной клик открывает файл в стандартной программе."
+            "Двойной клик открывает файл в стандартной программе.\n"
+            "Клик по области превью тоже открывает выбранный файл."
         )
         self.open_button.setEnabled(False)
 
@@ -92,6 +138,7 @@ class PreviewPanel(QFrame):
         self._current_image = None
         self.image_label.setPixmap(QPixmap())
         self.image_label.setText("Загрузка превью…")
+        self.image_label.set_clickable(True)
         self.name_label.setText(name)
         self.details_text.setPlainText("Читаю миниатюру в фоне, интерфейс не зависнет.")
         self.open_button.setEnabled(True)
@@ -100,6 +147,7 @@ class PreviewPanel(QFrame):
         self._current_image = None
         self.image_label.setPixmap(QPixmap())
         self.image_label.setText("Выбрано несколько объектов")
+        self.image_label.set_clickable(False)
         self.name_label.setText(f"Выбрано: {selected_count}")
         self.details_text.setPlainText(f"Файлов: {files}\nПапок: {folders}")
         self.open_button.setEnabled(False)
@@ -111,14 +159,22 @@ class PreviewPanel(QFrame):
             details += f"\n\nПревью: {result.error}"
         self.details_text.setPlainText(details)
 
-        self._current_image = result.image if result.image is not None and not result.image.isNull() else None
+        can_open = result.path.exists() and result.path.is_file()
+        self._current_image = (
+            result.image
+            if result.image is not None and not result.image.isNull()
+            else None
+        )
         if self._current_image is not None:
             self.image_label.setText("")
             self._update_image_pixmap()
         else:
             self.image_label.setPixmap(QPixmap())
-            self.image_label.setText("Миниатюра недоступна")
-        self.open_button.setEnabled(result.path.exists() and result.path.is_file())
+            self.image_label.setText(
+                "Миниатюра недоступна\n\nНажмите здесь, чтобы открыть файл"
+            )
+        self.image_label.set_clickable(can_open)
+        self.open_button.setEnabled(can_open)
 
     def _update_image_pixmap(self) -> None:
         if self._current_image is None or self._current_image.isNull():

@@ -62,7 +62,7 @@ class ArchiveManagerApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("Файловый менеджер (Архиватор)")
         self.resize(1360, 820)
-        self.setMinimumSize(1040, 680)
+        self.setMinimumSize(1040, 780)
 
         self.icons = IconFactory()
         self.current_path = Path.home().resolve()
@@ -304,7 +304,7 @@ class ArchiveManagerApp(QMainWindow):
         self.file_table.size_requested.connect(self.calculate_folder_size_from_button)
         self.file_table_card = TableCard(self.file_table, central)
         self.preview_panel = PreviewPanel(central)
-        self.preview_panel.open_button.clicked.connect(self.open_in_system_selected)
+        self.preview_panel.open_requested.connect(self.open_in_system_selected)
 
         self.content_splitter = QSplitter(Qt.Orientation.Horizontal, central)
         self.content_splitter.setObjectName("ContentSplitter")
@@ -397,7 +397,9 @@ class ArchiveManagerApp(QMainWindow):
             self.preview_panel.set_result(result)
             self.update_selection_status()
 
-        def on_error(error: str, gen: int = generation, preview_path: Path = path) -> None:
+        def on_error(
+            error: str, gen: int = generation, preview_path: Path = path
+        ) -> None:
             if gen != self.preview_generation:
                 return
             fallback = PreviewResult(
@@ -447,6 +449,9 @@ class ArchiveManagerApp(QMainWindow):
             self.app_actions["paste"].setToolTip("Вставить объекты из буфера")
             self.app_actions["paste"].setStatusTip("Вставить объекты из буфера")
             self.app_actions["paste"].setEnabled(False)
+
+        if hasattr(self, "action_bar"):
+            self.action_bar.schedule_overflow_update()
 
     def set_status(self, text: str) -> None:
         self.statusBar().showMessage(text)
@@ -599,7 +604,9 @@ class ArchiveManagerApp(QMainWindow):
                 return
 
             open_in_system(path)
-            self.set_status_with_context(f"Открыто в стандартной программе: {path.name}")
+            self.set_status_with_context(
+                f"Открыто в стандартной программе: {path.name}"
+            )
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка", f"Не удалось открыть:\n{exc}")
 
@@ -868,7 +875,6 @@ class ArchiveManagerApp(QMainWindow):
             )
         self.set_status(f"Размер {path.name}: {format_size(total_size)}")
 
-
     def toggle_preview_panel(self) -> None:
         action = self.app_actions["toggle_preview_panel"]
         is_visible = action.isChecked()
@@ -882,12 +888,16 @@ class ArchiveManagerApp(QMainWindow):
                 if len(sizes) == 2 and sizes[1] <= 0:
                     self.content_splitter.setSizes([920, 340])
             self.update_preview_for_selection()
+            if hasattr(self, "action_bar"):
+                self.action_bar.schedule_overflow_update()
             self.set_status_with_context("Панель превью показана")
         else:
             action.setText("Показать превью")
             action.setToolTip("Показать панель предпросмотра")
             action.setStatusTip("Показать панель предпросмотра")
             self.preview_generation += 1
+            if hasattr(self, "action_bar"):
+                self.action_bar.schedule_overflow_update()
             self.set_status_with_context("Панель превью скрыта")
 
     def toggle_search_panel(self) -> None:

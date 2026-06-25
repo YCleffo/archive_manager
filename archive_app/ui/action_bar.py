@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtGui import QAction, QResizeEvent
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -18,6 +18,46 @@ from .theme import make_interactive
 
 
 class ActionBar(QFrame):
+    """Верхняя панель действий с адаптивным переносом в меню «Ещё»."""
+
+    PRIMARY_ACTIONS: tuple[str, ...] = (
+        "back",
+        "forward",
+        "up",
+        "home",
+        "refresh",
+        "new_folder",
+        "copy",
+        "cut",
+        "paste",
+        "delete",
+        "toggle_preview_panel",
+        "search",
+    )
+    OVERFLOW_ORDER: tuple[str, ...] = (
+        "search",
+        "toggle_preview_panel",
+        "delete",
+        "paste",
+        "cut",
+        "copy",
+        "new_folder",
+        "refresh",
+        "home",
+        "forward",
+        "up",
+        "back",
+    )
+    ALWAYS_IN_MORE: tuple[str, ...] = (
+        "undo",
+        "system_open",
+        "rename",
+        "zip",
+        "extract",
+        "preview",
+        "size",
+    )
+
     def __init__(
         self,
         actions: Mapping[str, QAction],
@@ -26,21 +66,37 @@ class ActionBar(QFrame):
     ) -> None:
         super().__init__(parent)
         self.setObjectName("SurfaceBar")
+        self._actions = actions
+        self._icons = icons
+        self._buttons: dict[str, QToolButton] = {}
+        self._hidden_action_keys: list[str] = []
+        self._pending_overflow_update = False
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 8, 10, 8)
-        layout.setSpacing(7)
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(10, 8, 10, 8)
+        self._layout.setSpacing(7)
 
         for key in ("back", "forward", "up", "home", "refresh"):
-            layout.addWidget(self._button(actions[key]))
-        layout.addWidget(self._separator())
+            self._add_action_button(key)
+        self._main_separator = self._separator()
+        self._layout.addWidget(self._main_separator)
         for key in ("new_folder", "copy", "cut", "paste", "delete"):
-            layout.addWidget(self._button(actions[key]))
+            self._add_action_button(key)
 
-        layout.addStretch(1)
-        layout.addWidget(self._button(actions["toggle_preview_panel"]))
-        layout.addWidget(self._button(actions["search"]))
-        layout.addWidget(self._more_button(actions, icons))
+        self._layout.addStretch(1)
+        self._right_separator = self._separator()
+        self._layout.addWidget(self._right_separator)
+        for key in ("toggle_preview_panel", "search"):
+            self._add_action_button(key)
+        self._more_button_widget = self._more_button(actions, icons)
+        self._layout.addWidget(self._more_button_widget)
+
+        self.schedule_overflow_update()
+
+    def _add_action_button(self, key: str) -> None:
+        button = self._button(self._actions[key])
+        self._buttons[key] = button
+        self._layout.addWidget(button)
 
     def _button(self, action: QAction) -> QToolButton:
         button = QToolButton(self)
@@ -77,15 +133,114 @@ class ActionBar(QFrame):
         button.clicked.connect(show_menu)
         return button
 
+    def schedule_overflow_update(self) -> None:
+        if self._pending_overflow_update:
+            return
+        self._pending_overflow_update = True
+        QTimer.singleShot(0, self.update_overflow)
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.schedule_overflow_update()
+
+    def update_overflow(self) -> None:
+        self._pending_overflow_update = False
+        for button in self._buttons.values():
+            button.setVisible(True)
+        self._hidden_action_keys = []
+        self._sync_separators()
+        self._layout.activate()
+
+        for key in self.OVERFLOW_ORDER:
+            if self._required_width() <= max(0, self.contentsRect().width()):
+                break
+            button = self._buttons.get(key)
+            if button is None or not button.isVisible():
+                continue
+            button.setVisible(False)
+            self._hidden_action_keys.insert(0, key)
+            self._sync_separators()
+            self._layout.activate()
+
+        self._more_button_widget.setVisible(True)
+        hidden_count = len(self._hidden_action_keys)
+        self._more_button_widget.setToolTip(
+            f"Показать скрытые и дополнительные действия ({hidden_count})"
+            if hidden_count
+            else "Показать больше действий"
+        )
+
+    def _required_width(self) -> int:
+        margins = self._layout.contentsMargins()
+        spacing = self._layout.spacing()
+
+        all_widgets: list[QWidget] = []
+
+        for button in self._buttons.values():
+            all_widgets.append(button)
+
+        all_widgets.append(self._main_separator)
+        all_widgets.append(self._right_separator)
+        all_widgets.append(self._more_button_widget)
+
+        visible_widgets: list[QWidget] = []
+
+        for item_widget in all_widgets:
+            if item_widget.isVisible():
+                visible_widgets.append(item_widget)
+
+        width = margins.left() + margins.right()
+
+        if visible_widgets:
+            width += spacing * max(0, len(visible_widgets) - 1)
+
+        for item_widget in visible_widgets:
+            width += max(
+                item_widget.minimumSizeHint().width(),
+                item_widget.sizeHint().width(),
+            )
+
+        return width
+
+    def _sync_separators(self) -> None:
+        left_visible = any(
+            self._buttons[key].isVisible()
+            for key in ("back", "forward", "up", "home", "refresh")
+        )
+        middle_visible = any(
+            self._buttons[key].isVisible()
+            for key in ("new_folder", "copy", "cut", "paste", "delete")
+        )
+        right_visible = any(
+            self._buttons[key].isVisible() for key in ("toggle_preview_panel", "search")
+        )
+        self._main_separator.setVisible(left_visible and middle_visible)
+        self._right_separator.setVisible(
+            (left_visible or middle_visible) and right_visible
+        )
+
     def _show_more_menu(
         self, button: QToolButton, actions: Mapping[str, QAction]
     ) -> None:
+        # QToolButton.setMenu() переиспользует один и тот же QMenu.
+        # На Windows/PySide6 с кастомными popup это иногда открывается только один раз.
+        # Поэтому меню создаётся заново при каждом клике.
         menu = QMenu(button)
         menu.setObjectName("MoreActionsMenu")
         menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
 
-        for key in ("undo", "rename", "zip", "extract", "preview", "size"):
+        added: set[str] = set()
+        for key in self._hidden_action_keys:
             menu.addAction(actions[key])
+            added.add(key)
+
+        if added:
+            menu.addSeparator()
+
+        for key in self.ALWAYS_IN_MORE:
+            if key not in added:
+                menu.addAction(actions[key])
+                added.add(key)
 
         button.setDown(True)
 
