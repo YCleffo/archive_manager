@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
 import queue
-import sys
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -17,6 +15,8 @@ from .file_utils import (
     move_items,
     open_in_system,
     rename_item,
+    format_size,
+    calculate_folder_size,
 )
 from .search_utils import SearchResult, search_files
 
@@ -322,28 +322,8 @@ class ArchiveManagerApp(tk.Tk):
             return
             
         def worker() -> None:
-            total_size = 0
-            total_files = 0
-            
-            def scan(p: str) -> None:
-                nonlocal total_size, total_files
-                try:
-                    from .file_utils import format_size # already imported at top but needed here if moved out, but we are inside method
-                    with os.scandir(p) as it:
-                        for entry in it:
-                            if entry.is_file(follow_symlinks=False):
-                                total_size += entry.stat(follow_symlinks=False).st_size
-                                total_files += 1
-                            elif entry.is_dir(follow_symlinks=False):
-                                scan(entry.path)
-                except OSError:
-                    pass
-                    
             self.after(0, self.set_status, f"Вычисление размера: {path.name}...")
-            scan(str(path))
-            
-            # format_size is imported at top
-            from .file_utils import format_size
+            total_size, total_files = calculate_folder_size(path)
             self.after(0, messagebox.showinfo, "Размер папки", f"Папка: {path.name}\nРазмер: {format_size(total_size)}\nФайлов: {total_files}")
             self.after(0, self.set_status, f"Размер {path.name}: {format_size(total_size)}")
             

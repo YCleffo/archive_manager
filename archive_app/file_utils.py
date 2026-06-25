@@ -161,3 +161,24 @@ def create_folder(parent: Path, name: str) -> Path:
     target = Path(parent) / clean_name
     target.mkdir(parents=False, exist_ok=False)
     return target
+
+
+def calculate_folder_size(path: Path | str) -> tuple[int, int]:
+    total_size = 0
+    total_files = 0
+    
+    def scan(p: str) -> None:
+        nonlocal total_size, total_files
+        try:
+            with os.scandir(p) as it:
+                for entry in it:
+                    if entry.is_file(follow_symlinks=False):
+                        total_size += entry.stat(follow_symlinks=False).st_size
+                        total_files += 1
+                    elif entry.is_dir(follow_symlinks=False):
+                        scan(entry.path)
+        except OSError:
+            pass
+            
+    scan(str(path))
+    return total_size, total_files
