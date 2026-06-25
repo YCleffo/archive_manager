@@ -73,9 +73,47 @@ class NoFocusDelegate(QStyledItemDelegate):
 
     def _paint_hover_background(
         self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
         index: QModelIndex | QPersistentModelIndex,
     ) -> bool:
-        return self._is_hovered(index)
+        is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        if self._is_hovered(index) and not is_selected:
+            painter.fillRect(option.rect, HOVER_ROW_COLOR)
+            return True
+        return False
+
+    def _paint_hover_cell(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> bool:
+        if not self._paint_hover_background(painter, option, index):
+            return False
+
+        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        icon = index.data(Qt.ItemDataRole.DecorationRole)
+        alignment = index.data(Qt.ItemDataRole.TextAlignmentRole)
+        if alignment is None:
+            alignment = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+
+        text_rect = option.rect.adjusted(10, 0, -10, 0)
+        if icon is not None and hasattr(icon, "paint"):
+            icon_rect = QRect(
+                text_rect.left(),
+                text_rect.top() + (text_rect.height() - 18) // 2,
+                18,
+                18,
+            )
+            icon.paint(painter, icon_rect)
+            text_rect.setLeft(icon_rect.right() + 10)
+
+        painter.save()
+        painter.setPen(QColor("#152033"))
+        painter.drawText(text_rect, alignment, text)
+        painter.restore()
+        return True
 
     def paint(
         self,
@@ -84,8 +122,8 @@ class NoFocusDelegate(QStyledItemDelegate):
         index: QModelIndex | QPersistentModelIndex,
     ) -> None:
         clean_option = self._prepare_option(option)
-        if self._paint_hover_background(index):
-            clean_option.backgroundBrush = QBrush(HOVER_ROW_COLOR)
+        if self._paint_hover_cell(painter, clean_option, index):
+            return
         super().paint(painter, clean_option, index)
 
 
@@ -102,9 +140,8 @@ class SizeButtonDelegate(NoFocusDelegate):
 
         clean_option = self._prepare_option(option)
         clean_option.text = ""
-        if self._paint_hover_background(index):
-            clean_option.backgroundBrush = QBrush(HOVER_ROW_COLOR)
         QStyledItemDelegate.paint(self, painter, clean_option, index)
+        self._paint_hover_background(painter, clean_option, index)
 
         button_rect = self._button_rect(clean_option.rect)
         is_selected = bool(clean_option.state & QStyle.StateFlag.State_Selected)
