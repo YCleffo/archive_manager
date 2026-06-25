@@ -34,7 +34,7 @@ class ActionBar(QFrame):
         for key in ("back", "forward", "up", "home", "refresh"):
             layout.addWidget(self._button(actions[key]))
         layout.addWidget(self._separator())
-        for key in ("new_folder", "copy", "move", "delete"):
+        for key in ("new_folder", "copy", "cut", "paste", "delete"):
             layout.addWidget(self._button(actions[key]))
 
         layout.addStretch(1)

@@ -63,6 +63,8 @@ class ArchiveManagerApp(QMainWindow):
         self.current_path = Path.home().resolve()
         self.history: list[Path] = []
         self.forward_history: list[Path] = []
+        self._clipboard_paths: list[Path] = []
+        self._clipboard_is_cut: bool = False
         self.undo_stack: list[tuple[str, Callable[[], None]]] = []
         self.search_cancel_event: threading.Event | None = None
         self.search_generation = 0
@@ -157,17 +159,25 @@ class ArchiveManagerApp(QMainWindow):
                 "copy",
                 "Копировать",
                 "copy",
-                "Скопировать выбранные объекты",
+                "Скопировать выбранные объекты в буфер",
                 self.copy_selected,
-                None,
+                "Ctrl+C",
             ),
             (
-                "move",
-                "Переместить",
-                "move",
-                "Переместить выбранные объекты",
-                self.move_selected,
-                None,
+                "cut",
+                "Вырезать",
+                "cut",
+                "Вырезать выбранные объекты в буфер",
+                self.cut_selected,
+                "Ctrl+X",
+            ),
+            (
+                "paste",
+                "Вставить",
+                "paste",
+                "Вставить объекты из буфера",
+                self.paste_clipboard,
+                "Ctrl+V",
             ),
             (
                 "delete",
@@ -509,45 +519,46 @@ class ArchiveManagerApp(QMainWindow):
         if not paths:
             QMessageBox.information(self, "Копирование", "Выберите файлы или папки")
             return
-        destination = QFileDialog.getExistingDirectory(
-            self, "Куда копировать?", str(self.current_path)
-        )
-        if not destination:
-            return
-        try:
-            copied = copy_items(paths, Path(destination))
-            self._push_undo(
-                f"копирование объектов: {len(copied)}",
-                lambda copied_paths=copied: delete_items(copied_paths),
-            )
-            self.refresh()
-            self.set_status(f"Скопировано объектов: {len(copied)}")
-        except Exception as exc:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось скопировать:\n{exc}")
+        self._clipboard_paths = paths
+        self._clipboard_is_cut = False
+        self.set_status(f"В буфере {len(paths)} объектов (Копирование)")
 
-    def move_selected(self) -> None:
+    def cut_selected(self) -> None:
         paths = self.get_selected_paths()
         if not paths:
-            QMessageBox.information(self, "Перемещение", "Выберите файлы или папки")
+            QMessageBox.information(self, "Вырезание", "Выберите файлы или папки")
             return
-        destination = QFileDialog.getExistingDirectory(
-            self, "Куда переместить?", str(self.current_path)
-        )
-        if not destination:
+        self._clipboard_paths = paths
+        self._clipboard_is_cut = True
+        self.set_status(f"В буфере {len(paths)} объектов (Вырезание)")
+
+    def paste_clipboard(self) -> None:
+        if not self._clipboard_paths:
             return
-        try:
-            originals = paths.copy()
-            moved = move_items(paths, Path(destination))
-            self._push_undo(
-                f"перемещение объектов: {len(moved)}",
-                lambda moved_pairs=list(zip(originals, moved)): self._undo_move_items(
-                    moved_pairs
-                ),
-            )
+            
+        is_cut = self._clipboard_is_cut
+        paths = self._clipboard_paths
+        dest = self.current_path
+        
+        def task(status: Callable[[str], None]) -> int:
+            if is_cut:
+                status("Перемещение...")
+                moved = move_items(paths, dest)
+                return len(moved)
+            else:
+                status("Копирование...")
+                copied = copy_items(paths, dest)
+                return len(copied)
+                
+        def on_success(count: int) -> None:
+            if is_cut:
+                self.set_status(f"Перемещено объектов: {count}")
+                self._clipboard_paths = []
+            else:
+                self.set_status(f"Скопировано объектов: {count}")
             self.refresh()
-            self.set_status(f"Перемещено объектов: {len(moved)}")
-        except Exception as exc:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось переместить:\n{exc}")
+            
+        self._start_operation(task, "Ошибка вставки", on_success)
 
     def create_zip_from_selection(self) -> None:
         paths = self.get_selected_paths()
@@ -808,8 +819,11 @@ class ArchiveManagerApp(QMainWindow):
         for key in ("zip", "extract"):
             menu.addAction(self.app_actions[key])
         menu.addSeparator()
-        for key in ("copy", "move", "rename", "delete"):
-            menu.addAction(self.app_actions[key])
+        for key in ("copy", "cut", "paste", "rename", "delete"):
+            action = self.app_actions[key]
+            if key == "paste":
+                action.setEnabled(bool(self._clipboard_paths))
+            menu.addAction(action)
         menu.addSeparator()
         menu.addAction(self.app_actions["size"])
         menu.exec(pos)

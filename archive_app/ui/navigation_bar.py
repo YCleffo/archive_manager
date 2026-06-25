@@ -82,6 +82,7 @@ class PathBar(QFrame):
         popup = self.completer.popup()
         if popup is not None:
             popup.setObjectName("PathCompleterPopup")
+            popup.setStyleSheet("")
         self.path_edit.textEdited.connect(self.completer.update_suggestions)
 
         layout.addWidget(self.path_edit, 1)
