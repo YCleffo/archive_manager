@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QPoint, QSize, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QFrame,
@@ -26,6 +26,7 @@ class ActionBar(QFrame):
     ) -> None:
         super().__init__(parent)
         self.setObjectName("SurfaceBar")
+        self._actions = actions
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 8, 10, 8)
@@ -62,33 +63,28 @@ class ActionBar(QFrame):
     def _more_button(
         self, actions: Mapping[str, QAction], icons: IconFactory
     ) -> QToolButton:
-        menu = QMenu(self)
-        menu.setWindowFlags(
-            menu.windowFlags()
-            | Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.NoDropShadowWindowHint
-        )
-        menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect
-        from PySide6.QtGui import QColor
-
-        shadow = QGraphicsDropShadowEffect(menu)
-        shadow.setBlurRadius(12)
-        shadow.setColor(QColor(0, 0, 0, 40))
-        shadow.setOffset(0, 4)
-        menu.setGraphicsEffect(shadow)
-
-        for key in ("undo", "rename", "zip", "extract", "preview", "size"):
-            menu.addAction(actions[key])
-
         button = QToolButton(self)
         button.setMinimumHeight(32)
         button.setText("Ещё")
         button.setIcon(icons.icon("more"))
         button.setIconSize(QSize(18, 18))
         button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        button.setMenu(menu)
+        button.clicked.connect(
+            lambda _checked=False, btn=button: self._show_more_menu(btn)
+        )
         make_interactive(button, "Показать больше действий")
         return button
+
+    def _show_more_menu(self, button: QToolButton) -> None:
+        """Создаёт меню заново при каждом открытии.
+
+        Так QToolButton не хранит закрытый popup как внутреннее меню, поэтому меню
+        «Ещё» стабильно открывается повторно после клика вне окна или Esc.
+        """
+        menu = QMenu(button)
+        menu.setObjectName("MoreMenu")
+        for key in ("undo", "rename", "zip", "extract", "preview", "size"):
+            menu.addAction(self._actions[key])
+
+        pos = button.mapToGlobal(QPoint(0, button.height() + 4))
+        menu.exec(pos)

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRunnable, Qt, QThreadPool
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QMouseEvent, QColor
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QInputDialog,
@@ -318,25 +318,33 @@ class ArchiveManagerApp(QMainWindow):
                 files += 1
         return len(paths), files, folders
 
+    def _format_object_count(self, total: int, files: int, folders: int) -> str:
+        return f"{total} объектов: файлов {files}, папок {folders}"
+
     def _selection_text(self) -> str:
         paths = self.get_selected_paths()
         total, files, folders = self._count_paths(paths)
         if total == 0:
-            return "Ничего не выбрано"
-        return f"Выбрано: {total} | файлов: {files} | папок: {folders}"
+            return "Выбрано: 0 объектов"
+        return f"Выбрано: {self._format_object_count(total, files, folders)}"
 
     def _clipboard_text(self) -> str:
         count = len(self._clipboard_paths)
         if count == 0:
-            return "Буфер пуст"
+            return "Буфер: пуст"
+        total, files, folders = self._count_paths(self._clipboard_paths)
         mode = "вырезано" if self._clipboard_is_cut else "скопировано"
-        return f"В буфере: {mode} {count} | можно вставить: {count}"
+        return (
+            f"Буфер: {mode} {self._format_object_count(total, files, folders)}; "
+            f"можно вставить {count}"
+        )
 
     def update_selection_status(self) -> None:
-        self.set_status(f"{self._selection_text()} | {self._clipboard_text()}")
         self.update_action_counts()
+        self.set_status(f"{self._selection_text()} | {self._clipboard_text()}")
 
     def set_status_with_context(self, message: str) -> None:
+        self.update_action_counts()
         self.set_status(
             f"{message} | {self._selection_text()} | {self._clipboard_text()}"
         )
@@ -345,24 +353,43 @@ class ArchiveManagerApp(QMainWindow):
         selected_count = len(self.get_selected_paths())
         clipboard_count = len(self._clipboard_paths)
 
-        self.app_actions["copy"].setText(
-            f"Копировать ({selected_count})" if selected_count else "Копировать"
-        )
-        self.app_actions["cut"].setText(
-            f"Вырезать ({selected_count})" if selected_count else "Вырезать"
-        )
+        if clipboard_count and not self._clipboard_is_cut:
+            self.app_actions["copy"].setText(f"Скопировано: {clipboard_count}")
+            self.app_actions["copy"].setToolTip(
+                f"Скопировано объектов: {clipboard_count}. "
+                f"Можно вставить: {clipboard_count}"
+            )
+        else:
+            self.app_actions["copy"].setText(
+                f"Копировать ({selected_count})" if selected_count else "Копировать"
+            )
+            self.app_actions["copy"].setToolTip("Скопировать выбранные объекты в буфер")
+
+        if clipboard_count and self._clipboard_is_cut:
+            self.app_actions["cut"].setText(f"Вырезано: {clipboard_count}")
+            self.app_actions["cut"].setToolTip(
+                f"Вырезано объектов: {clipboard_count}. "
+                f"Можно вставить: {clipboard_count}"
+            )
+        else:
+            self.app_actions["cut"].setText(
+                f"Вырезать ({selected_count})" if selected_count else "Вырезать"
+            )
+            self.app_actions["cut"].setToolTip("Вырезать выбранные объекты в буфер")
+
         self.app_actions["delete"].setText(
             f"Удалить ({selected_count})" if selected_count else "Удалить"
         )
 
         if clipboard_count:
-            self.app_actions["paste"].setText(f"Вставить ({clipboard_count})")
-            self.app_actions["paste"].setToolTip(
-                f"Можно вставить объектов: {clipboard_count}"
+            operation = "вырезано" if self._clipboard_is_cut else "скопировано"
+            tooltip = (
+                f"В буфере {operation} объектов: {clipboard_count}. "
+                f"Можно вставить: {clipboard_count}"
             )
-            self.app_actions["paste"].setStatusTip(
-                f"Можно вставить объектов: {clipboard_count}"
-            )
+            self.app_actions["paste"].setText(f"Вставить: {clipboard_count}")
+            self.app_actions["paste"].setToolTip(tooltip)
+            self.app_actions["paste"].setStatusTip(tooltip)
             self.app_actions["paste"].setEnabled(True)
         else:
             self.app_actions["paste"].setText("Вставить")
@@ -371,6 +398,7 @@ class ArchiveManagerApp(QMainWindow):
             self.app_actions["paste"].setEnabled(False)
 
     def set_status(self, text: str) -> None:
+        self.status_label.setText(text)
         self.statusBar().showMessage(text)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
@@ -384,42 +412,6 @@ class ArchiveManagerApp(QMainWindow):
             if button == Qt.MouseButton.ForwardButton:
                 self.go_forward()
                 return True
-
-        if (
-            event.type() == QEvent.Type.Show
-            and isinstance(watched, QWidget)
-            and watched.isWindow()
-        ):
-            flags = watched.windowFlags()
-            if (
-                (flags & Qt.WindowType.Popup)
-                or (flags & Qt.WindowType.ToolTip)
-                or isinstance(watched, QMenu)
-            ):
-                from PySide6.QtCore import QTimer
-
-                def fix_pos(w: QWidget = watched) -> None:
-                    try:
-                        window_rect = self.geometry()
-                        w_rect = w.geometry()
-                        new_pos = w_rect.topLeft()
-
-                        if new_pos.x() + w_rect.width() > window_rect.right():
-                            new_pos.setX(window_rect.right() - w_rect.width())
-                        if new_pos.y() + w_rect.height() > window_rect.bottom():
-                            new_pos.setY(window_rect.bottom() - w_rect.height())
-
-                        if new_pos.x() < window_rect.left():
-                            new_pos.setX(window_rect.left())
-                        if new_pos.y() < window_rect.top():
-                            new_pos.setY(window_rect.top())
-
-                        if new_pos != w_rect.topLeft():
-                            w.move(new_pos)
-                    except RuntimeError:
-                        pass
-
-                QTimer.singleShot(0, fix_pos)
 
         return super().eventFilter(watched, event)
 
@@ -467,8 +459,7 @@ class ArchiveManagerApp(QMainWindow):
                 self.current_path = path
                 self.path_bar.set_path(str(path))
                 self.file_table.set_entries(entries)
-                self.update_action_counts()
-                self.update_selection_status()
+                self.set_status_with_context(f"Открыта папка: {path}")
 
             self._start_operation(task, "Ошибка загрузки", on_result)
         except Exception as exc:
@@ -554,7 +545,7 @@ class ArchiveManagerApp(QMainWindow):
                 lambda created_path=created: delete_items([created_path]),
             )
             self.refresh()
-            self.set_status(f"Создана папка: {created.name}")
+            self.set_status_with_context(f"Создана папка: {created.name}")
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка", str(exc))
 
@@ -581,7 +572,7 @@ class ArchiveManagerApp(QMainWindow):
 
             self._push_undo(f"переименование {renamed.name}", make_undo(renamed, path))
             self.refresh()
-            self.set_status(f"Переименовано: {renamed.name}")
+            self.set_status_with_context(f"Переименовано: {renamed.name}")
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка", str(exc))
 
@@ -617,8 +608,10 @@ class ArchiveManagerApp(QMainWindow):
         self._clipboard_paths = paths
         self._clipboard_is_cut = False
         self.update_action_counts()
+        total, files, folders = self._count_paths(paths)
         self.set_status_with_context(
-            f"Скопировано в буфер: {len(paths)} | можно вставить: {len(paths)}"
+            f"Скопировано: {self._format_object_count(total, files, folders)}; "
+            f"можно вставить {len(paths)}"
         )
 
     def cut_selected(self) -> None:
@@ -629,8 +622,10 @@ class ArchiveManagerApp(QMainWindow):
         self._clipboard_paths = paths
         self._clipboard_is_cut = True
         self.update_action_counts()
+        total, files, folders = self._count_paths(paths)
         self.set_status_with_context(
-            f"Вырезано в буфер: {len(paths)} | можно вставить: {len(paths)}"
+            f"Вырезано: {self._format_object_count(total, files, folders)}; "
+            f"можно вставить {len(paths)}"
         )
 
     def paste_clipboard(self) -> None:
@@ -657,12 +652,12 @@ class ArchiveManagerApp(QMainWindow):
                 self._clipboard_is_cut = False
                 self.update_action_counts()
                 self.set_status_with_context(
-                    f"Перемещено объектов: {count} | буфер очищен"
+                    f"Перемещено объектов: {count}; буфер очищен"
                 )
             else:
                 self.update_action_counts()
                 self.set_status_with_context(
-                    f"Скопировано объектов: {count} | можно вставить ещё: {len(self._clipboard_paths)}"
+                    f"Скопировано объектов: {count}; можно вставить ещё: {len(self._clipboard_paths)}"
                 )
             self.refresh()
 
@@ -890,7 +885,13 @@ class ArchiveManagerApp(QMainWindow):
             if path.is_dir():
                 self.load_directory(path)
             elif path.exists():
-                open_in_system(path)
+                if is_supported_archive(path):
+                    self.show_archive_contents_for_path(path)
+                else:
+                    PreviewDialog(path, self).exec()
+                    self.set_status_with_context(
+                        f"Открыто внутри программы: {path.name}"
+                    )
             else:
                 QMessageBox.warning(self, "Поиск", "Файл уже не существует")
         except Exception as exc:
@@ -900,20 +901,7 @@ class ArchiveManagerApp(QMainWindow):
 
     def show_file_context_menu(self, pos: QPoint) -> None:
         menu = QMenu(self)
-        menu.setWindowFlags(
-            menu.windowFlags()
-            | Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.NoDropShadowWindowHint
-        )
-        menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect
-
-        shadow = QGraphicsDropShadowEffect(menu)
-        shadow.setBlurRadius(12)
-        shadow.setColor(QColor(0, 0, 0, 40))
-        shadow.setOffset(0, 4)
-        menu.setGraphicsEffect(shadow)
+        menu.setObjectName("FileContextMenu")
 
         for key in ("open", "preview"):
             menu.addAction(self.app_actions[key])
