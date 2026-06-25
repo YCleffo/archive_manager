@@ -126,9 +126,18 @@ class NoFocusDelegate(QStyledItemDelegate):
         is_hovered = self._is_hovered(index) and not is_selected
         has_icon = index.data(Qt.ItemDataRole.DecorationRole) is not None
 
-        if is_hovered and has_icon:
-            # Custom paint: stable icon size, no Qt hover effect on icon
-            painter.fillRect(clean_option.rect, HOVER_ROW_COLOR)
+        if has_icon:
+            # We ALWAYS manually draw cells with icons to keep icon size and text 
+            # position completely stable, avoiding Qt's native resize on hover.
+            if is_hovered:
+                painter.fillRect(clean_option.rect, HOVER_ROW_COLOR)
+            elif is_selected:
+                painter.fillRect(clean_option.rect, QColor("#e6f0ff"))
+            elif clean_option.features & QStyleOptionViewItem.ViewItemFeature.Alternate:
+                painter.fillRect(clean_option.rect, QColor("#fafbfc"))
+            else:
+                painter.fillRect(clean_option.rect, QColor("#ffffff"))
+                
             self._paint_content(painter, clean_option, index)
         else:
             if is_hovered:
