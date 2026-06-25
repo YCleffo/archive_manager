@@ -51,7 +51,7 @@ class ToolbarFrame(ttk.Frame):
         for index, (text, cmd_name) in enumerate(buttons_def):
             cmd = callbacks.get(cmd_name)
             if cmd:
-                ttk.Button(toolbar, text=text, command=cmd, style="Toolbar.TButton").grid(row=0, column=index, padx=2)
+                ttk.Button(toolbar, text=text, command=cmd, style="Toolbar.TButton", cursor="hand2").grid(row=0, column=index, padx=2)
 
         # --- Path entry ---
         path_frame = ttk.Frame(self, padding=(8, 0, 8, 6))
@@ -65,7 +65,7 @@ class ToolbarFrame(ttk.Frame):
         
         nav_cmd = callbacks.get("navigate_from_entry")
         if nav_cmd:
-            ttk.Button(path_frame, text="Перейти", command=nav_cmd).grid(row=0, column=2, padx=(6, 0))
+            ttk.Button(path_frame, text="Перейти", command=nav_cmd, cursor="hand2").grid(row=0, column=2, padx=(6, 0))
             self.path_entry.bind("<Return>", lambda _event: nav_cmd()) # type: ignore
 
     def set_path(self, path: str) -> None:

@@ -27,9 +27,9 @@ class SearchPanelFrame(ttk.Frame):
         self.ext_entry.grid(row=0, column=3)
 
         self.content_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(search_bar, text="Искать внутри файлов", variable=self.content_var).grid(row=0, column=4, padx=(8, 2))
-        ttk.Button(search_bar, text="Найти", command=callbacks.get("start_search")).grid(row=0, column=5, padx=2)
-        ttk.Button(search_bar, text="Стоп", command=callbacks.get("stop_search")).grid(row=0, column=6, padx=2)
+        ttk.Checkbutton(search_bar, text="Искать внутри файлов", variable=self.content_var, cursor="hand2").grid(row=0, column=4, padx=(8, 2))
+        ttk.Button(search_bar, text="Найти", command=callbacks.get("start_search"), cursor="hand2").grid(row=0, column=5, padx=2)
+        ttk.Button(search_bar, text="Стоп", command=callbacks.get("stop_search"), cursor="hand2").grid(row=0, column=6, padx=2)
 
         self.search_entry.bind("<Return>", lambda _e: callbacks.get("start_search")() if callbacks.get("start_search") else None)
 
