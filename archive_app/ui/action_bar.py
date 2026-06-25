@@ -219,9 +219,6 @@ class ActionBar(QFrame):
             self._buttons[key].isVisible()
             for key in ("new_folder", "copy", "cut", "paste", "delete")
         )
-        right_visible = any(
-            self._buttons[key].isVisible() for key in ("toggle_preview_panel", "search")
-        )
         self._main_separator.setVisible(left_visible and middle_visible)
 
     def _show_more_menu(
