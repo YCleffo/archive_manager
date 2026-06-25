@@ -84,8 +84,6 @@ class ActionBar(QFrame):
             self._add_action_button(key)
 
         self._layout.addStretch(1)
-        self._right_separator = self._separator()
-        self._layout.addWidget(self._right_separator)
         for key in ("toggle_preview_panel", "search"):
             self._add_action_button(key)
         self._more_button_widget = self._more_button(actions, icons)
@@ -191,7 +189,6 @@ class ActionBar(QFrame):
             all_widgets.append(button)
 
         all_widgets.append(self._main_separator)
-        all_widgets.append(self._right_separator)
         all_widgets.append(self._more_button_widget)
 
         visible_widgets: list[QWidget] = []
@@ -226,9 +223,6 @@ class ActionBar(QFrame):
             self._buttons[key].isVisible() for key in ("toggle_preview_panel", "search")
         )
         self._main_separator.setVisible(left_visible and middle_visible)
-        self._right_separator.setVisible(
-            (left_visible or middle_visible) and right_visible
-        )
 
     def _show_more_menu(
         self, button: QPushButton, actions: Mapping[str, QAction]
