@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 from typing import Any, Callable
 
-from PySide6.QtCore import QFileInfo, QObject, QRunnable, QSize, Qt, QThreadPool, Signal, Slot
+from PySide6.QtCore import QFileInfo, QObject, QRunnable, QSize, Qt, QThreadPool, Signal, Slot, QPoint
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -358,7 +358,9 @@ class ArchiveManagerApp(QMainWindow):
             action.setToolTip(f"{text} ({shortcut})")
         else:
             action.setToolTip(text)
-        action.triggered.connect(lambda _checked=False, cb=callback: cb())
+        def on_triggered(_checked: bool = False, cb: Callable[[], None] = callback) -> None:
+            cb()
+        action.triggered.connect(on_triggered)
         toolbar.addAction(action)
         return action
 
@@ -418,7 +420,9 @@ class ArchiveManagerApp(QMainWindow):
         self.file_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.file_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.file_table.customContextMenuRequested.connect(self.show_file_context_menu)
-        self.file_table.cellDoubleClicked.connect(lambda _row, _column: self.open_selected())
+        def on_file_double_clicked(_row: int, _column: int) -> None:
+            self.open_selected()
+        self.file_table.cellDoubleClicked.connect(on_file_double_clicked)
         return self.file_table
 
     def _build_search_panel(self) -> QWidget:
@@ -470,7 +474,9 @@ class ArchiveManagerApp(QMainWindow):
         self.search_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for column in range(1, 5):
             self.search_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
-        self.search_table.cellDoubleClicked.connect(lambda _row, _column: self.open_search_result())
+        def on_search_double_clicked(_row: int, _column: int) -> None:
+            self.open_search_result()
+        self.search_table.cellDoubleClicked.connect(on_search_double_clicked)
         layout.addWidget(self.search_table, 1)
 
         panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -781,7 +787,9 @@ class ArchiveManagerApp(QMainWindow):
             cancel_event=self.search_cancel_event,
         )
         worker.signals.result.connect(self.insert_search_result)
-        worker.signals.error.connect(lambda error: self._show_search_error(error))
+        def on_search_error(error_msg: str) -> None:
+            self._show_search_error(error_msg)
+        worker.signals.error.connect(on_search_error)
         worker.signals.finished.connect(self._search_finished)
         self._track_worker(worker)
         self.thread_pool.start(worker)
@@ -855,7 +863,7 @@ class ArchiveManagerApp(QMainWindow):
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка", f"Не удалось открыть результат:\n{exc}")
 
-    def show_file_context_menu(self, pos: Any) -> None:
+    def show_file_context_menu(self, pos: QPoint) -> None:
         index = self.file_table.indexAt(pos)
         if index.isValid():
             selected_rows = {row.row() for row in self.file_table.selectionModel().selectedRows()}
@@ -890,7 +898,9 @@ class ArchiveManagerApp(QMainWindow):
         callback: Callable[[], None],
     ) -> QAction:
         action = QAction(self._standard_icon(icon), text, self)
-        action.triggered.connect(lambda _checked=False, cb=callback: cb())
+        def on_menu_triggered(_checked: bool = False, cb: Callable[[], None] = callback) -> None:
+            cb()
+        action.triggered.connect(on_menu_triggered)
         menu.addAction(action)
         return action
 
@@ -903,7 +913,9 @@ class ArchiveManagerApp(QMainWindow):
         worker = OperationWorker(callback)
         worker.signals.status.connect(self.set_status)
         worker.signals.result.connect(on_result)
-        worker.signals.error.connect(lambda error: self._show_operation_error(error_status, error))
+        def on_op_error(error_msg: str) -> None:
+            self._show_operation_error(error_status, error_msg)
+        worker.signals.error.connect(on_op_error)
         self._track_worker(worker)
         self.thread_pool.start(worker)
         return worker
@@ -912,9 +924,13 @@ class ArchiveManagerApp(QMainWindow):
         self.workers.append(worker)
         signals = getattr(worker, "signals", None)
         if signals is not None and hasattr(signals, "finished"):
-            signals.finished.connect(lambda *args, task=worker: self._untrack_worker(task))
+            def on_finished(*args: Any, task: QRunnable = worker) -> None:
+                self._untrack_worker(task)
+            signals.finished.connect(on_finished)
         if signals is not None and hasattr(signals, "error"):
-            signals.error.connect(lambda *args, task=worker: self._untrack_worker(task))
+            def on_error(*args: Any, task: QRunnable = worker) -> None:
+                self._untrack_worker(task)
+            signals.error.connect(on_error)
 
     def _untrack_worker(self, worker: QRunnable) -> None:
         if worker in self.workers:
