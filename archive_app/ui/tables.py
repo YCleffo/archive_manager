@@ -3,7 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 
-from PySide6.QtCore import QEvent, QModelIndex, QPersistentModelIndex, QObject, QPoint, Qt, Signal
+from PySide6.QtCore import (
+    QEvent,
+    QModelIndex,
+    QPersistentModelIndex,
+    QObject,
+    QPoint,
+    Qt,
+    Signal,
+)
 from PySide6.QtGui import QBrush, QColor, QKeyEvent, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -36,17 +44,26 @@ class SortableTableWidgetItem(QTableWidgetItem):
         right = other.data(SORT_ROLE)
         if isinstance(left, (int, float)) and isinstance(right, (int, float)):
             return left < right
-        return str(left if left is not None else self.text()).casefold() < str(
-            right if right is not None else other.text()
-        ).casefold()
+        return (
+            str(left if left is not None else self.text()).casefold()
+            < str(right if right is not None else other.text()).casefold()
+        )
 
 
 class NoFocusDelegate(QStyledItemDelegate):
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
         clean_option = QStyleOptionViewItem(option)
         clean_option.state &= ~QStyle.StateFlag.State_HasFocus
         clean_option.state &= ~QStyle.StateFlag.State_MouseOver
-        if index.data(HOVER_ROLE) and not clean_option.state & QStyle.StateFlag.State_Selected:
+        if (
+            index.data(HOVER_ROLE)
+            and not clean_option.state & QStyle.StateFlag.State_Selected
+        ):
             clean_option.backgroundBrush = QBrush(QColor("#eef5ff"))
         super().paint(painter, clean_option, index)
 
@@ -78,10 +95,16 @@ class FileTable(QTableWidget):
         self.setHorizontalHeaderLabels(["Имя", "Тип", "Размер", "Изменён"])
         configure_table(self, multi_select=True)
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        self.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.Interactive
+        )
         self.setColumnWidth(2, 120)
-        self.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.ResizeToContents
+        )
         set_header_alignments(
             self,
             {
@@ -93,8 +116,10 @@ class FileTable(QTableWidget):
         )
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
+
         def on_cell_double_clicked(_row: int, _column: int) -> None:
             self.open_requested.emit()
+
         self.cellDoubleClicked.connect(on_cell_double_clicked)
         self.itemEntered.connect(self._on_item_entered)
         self.viewport().installEventFilter(self)
@@ -134,18 +159,24 @@ class FileTable(QTableWidget):
 
         name_item = SortableTableWidgetItem(entry.name)
         name_item.setIcon(self.icons.icon("folder" if entry.is_dir else "file"))
-        name_item.setData(SORT_ROLE, f"{0 if entry.is_dir else 1}|{entry.name.casefold()}")
+        name_item.setData(
+            SORT_ROLE, f"{0 if entry.is_dir else 1}|{entry.name.casefold()}"
+        )
         name_item.setData(PATH_ROLE, str(entry.path))
 
         kind_item = SortableTableWidgetItem(entry.kind)
         kind_item.setData(SORT_ROLE, entry.kind.casefold())
 
         size_item = SortableTableWidgetItem(format_size(entry.size))
-        size_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        size_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         size_item.setData(SORT_ROLE, -1 if entry.size is None else entry.size)
 
         modified_item = SortableTableWidgetItem(format_modified(entry.modified))
-        modified_item.setData(SORT_ROLE, 0 if entry.modified is None else entry.modified.timestamp())
+        modified_item.setData(
+            SORT_ROLE, 0 if entry.modified is None else entry.modified.timestamp()
+        )
 
         self.setItem(row, 0, name_item)
         self.setItem(row, 1, kind_item)
@@ -158,14 +189,19 @@ class FileTable(QTableWidget):
         normalized = str(Path(path).resolve())
         for row in range(self.rowCount()):
             item = self.item(row, 0)
-            if item is not None and str(Path(item.data(PATH_ROLE)).resolve()) == normalized:
+            if (
+                item is not None
+                and str(Path(item.data(PATH_ROLE)).resolve()) == normalized
+            ):
                 self.removeCellWidget(row, 2)
                 size_item = self.item(row, 2)
                 if size_item is None:
                     size_item = SortableTableWidgetItem()
                     self.setItem(row, 2, size_item)
                 size_item.setText(format_size(total_size))
-                size_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                size_item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
                 size_item.setData(SORT_ROLE, total_size)
                 return
 
@@ -244,11 +280,15 @@ class SearchResultsTable(QTableWidget):
         super().__init__(0, 5, parent)
         self.icons = icons
         self.hovered_row = -1
-        self.setHorizontalHeaderLabels(["Результат", "Совпадение", "Тип", "Размер", "Изменён"])
+        self.setHorizontalHeaderLabels(
+            ["Результат", "Совпадение", "Тип", "Размер", "Изменён"]
+        )
         configure_table(self, multi_select=False)
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for column in range(1, 5):
-            self.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+            self.horizontalHeader().setSectionResizeMode(
+                column, QHeaderView.ResizeMode.ResizeToContents
+            )
         set_header_alignments(
             self,
             {
@@ -259,8 +299,10 @@ class SearchResultsTable(QTableWidget):
                 4: Qt.AlignmentFlag.AlignLeft,
             },
         )
+
         def on_search_cell_double_clicked(_row: int, _column: int) -> None:
             self.open_requested.emit()
+
         self.cellDoubleClicked.connect(on_search_cell_double_clicked)
         self.itemEntered.connect(self._on_item_entered)
         self.viewport().installEventFilter(self)
@@ -284,11 +326,15 @@ class SearchResultsTable(QTableWidget):
         kind_item.setData(SORT_ROLE, result.kind.casefold())
 
         size_item = SortableTableWidgetItem(format_size(result.size))
-        size_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        size_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         size_item.setData(SORT_ROLE, -1 if result.size is None else result.size)
 
         modified_item = SortableTableWidgetItem(format_modified(result.modified))
-        modified_item.setData(SORT_ROLE, 0 if result.modified is None else result.modified.timestamp())
+        modified_item.setData(
+            SORT_ROLE, 0 if result.modified is None else result.modified.timestamp()
+        )
 
         self.setItem(row, 0, path_item)
         self.setItem(row, 1, match_item)
@@ -346,7 +392,9 @@ def configure_table(table: QTableWidget, multi_select: bool) -> None:
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
     table.setSelectionMode(
-        QAbstractItemView.SelectionMode.ExtendedSelection if multi_select else QAbstractItemView.SelectionMode.SingleSelection
+        QAbstractItemView.SelectionMode.ExtendedSelection
+        if multi_select
+        else QAbstractItemView.SelectionMode.SingleSelection
     )
     table.setShowGrid(False)
     table.setWordWrap(False)
@@ -357,13 +405,17 @@ def configure_table(table: QTableWidget, multi_select: bool) -> None:
     table.verticalHeader().setVisible(False)
     table.verticalHeader().setDefaultSectionSize(36)
     table.horizontalHeader().setHighlightSections(False)
-    table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+    table.horizontalHeader().setDefaultAlignment(
+        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+    )
     table.setItemDelegate(NoFocusDelegate(table))
     table.setMouseTracking(True)
     table.viewport().setMouseTracking(True)
 
 
-def set_header_alignments(table: QTableWidget, alignments: dict[int, Qt.AlignmentFlag]) -> None:
+def set_header_alignments(
+    table: QTableWidget, alignments: dict[int, Qt.AlignmentFlag]
+) -> None:
     for column, alignment in alignments.items():
         item = table.horizontalHeaderItem(column)
         if item is not None:

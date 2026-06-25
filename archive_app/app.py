@@ -8,9 +8,23 @@ from typing import Any, Callable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRunnable, Qt, QThreadPool
 from PySide6.QtGui import QAction, QKeySequence, QMouseEvent
-from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QInputDialog,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QVBoxLayout,
+    QWidget,
+)
 
-from .archive_utils import create_zip_archive, extract_archive, is_supported_archive, list_archive_members
+from .archive_utils import (
+    create_zip_archive,
+    extract_archive,
+    is_supported_archive,
+    list_archive_members,
+)
 from .file_utils import (
     calculate_folder_size,
     copy_items,
@@ -60,23 +74,142 @@ class ArchiveManagerApp(QMainWindow):
 
     def _create_actions(self) -> dict[str, QAction]:
         specs: list[tuple[str, str, str, str, Callable[[], None], str | None]] = [
-            ("open", "Открыть", "open", "Открыть выбранный файл или папку", self.open_selected, None),
-            ("back", "Назад", "back", "Вернуться к предыдущей папке (Alt+Left)", self.go_back, "Alt+Left"),
-            ("forward", "Вперёд", "forward", "Перейти к следующей папке в истории (Alt+Right)", self.go_forward, "Alt+Right"),
-            ("up", "Вверх", "up", "Перейти на уровень выше (Alt+Up)", self.go_up, "Alt+Up"),
-            ("home", "Домой", "home", "Открыть домашнюю папку (Alt+Home)", self.go_home, "Alt+Home"),
-            ("refresh", "Обновить", "refresh", "Перезагрузить список файлов (F5)", self.refresh, "F5"),
-            ("search", "Поиск", "search", "Показать или скрыть панель поиска файлов (Ctrl+F)", self.toggle_search_panel, "Ctrl+F"),
-            ("undo", "Отменить", "undo", "Отменить последнее файловое действие (Ctrl+Z)", self.undo_last_operation, "Ctrl+Z"),
-            ("new_folder", "Новая папка", "new-folder", "Создать новую папку в текущем каталоге", self.new_folder, None),
-            ("copy", "Копировать", "copy", "Скопировать выбранные объекты", self.copy_selected, None),
-            ("move", "Переместить", "move", "Переместить выбранные объекты", self.move_selected, None),
-            ("delete", "Удалить", "delete", "Удалить выбранные объекты без корзины (Delete в таблице)", self.delete_selected, None),
-            ("rename", "Переименовать", "rename", "Переименовать выбранный объект (F2 в таблице)", self.rename_selected, None),
-            ("zip", "Создать ZIP", "zip", "Создать ZIP-архив из выбранных объектов", self.create_zip_from_selection, None),
-            ("extract", "Распаковать", "extract", "Распаковать выбранный архив", self.extract_selected_archive, None),
-            ("preview", "Содержимое", "preview", "Показать содержимое выбранного архива", self.show_archive_contents, None),
-            ("size", "Размер папки", "size", "Посчитать размер выбранной папки", self.calculate_selected_size, None),
+            (
+                "open",
+                "Открыть",
+                "open",
+                "Открыть выбранный файл или папку",
+                self.open_selected,
+                None,
+            ),
+            (
+                "back",
+                "Назад",
+                "back",
+                "Вернуться к предыдущей папке (Alt+Left)",
+                self.go_back,
+                "Alt+Left",
+            ),
+            (
+                "forward",
+                "Вперёд",
+                "forward",
+                "Перейти к следующей папке в истории (Alt+Right)",
+                self.go_forward,
+                "Alt+Right",
+            ),
+            (
+                "up",
+                "Вверх",
+                "up",
+                "Перейти на уровень выше (Alt+Up)",
+                self.go_up,
+                "Alt+Up",
+            ),
+            (
+                "home",
+                "Домой",
+                "home",
+                "Открыть домашнюю папку (Alt+Home)",
+                self.go_home,
+                "Alt+Home",
+            ),
+            (
+                "refresh",
+                "Обновить",
+                "refresh",
+                "Перезагрузить список файлов (F5)",
+                self.refresh,
+                "F5",
+            ),
+            (
+                "search",
+                "Поиск",
+                "search",
+                "Показать или скрыть панель поиска файлов (Ctrl+F)",
+                self.toggle_search_panel,
+                "Ctrl+F",
+            ),
+            (
+                "undo",
+                "Отменить",
+                "undo",
+                "Отменить последнее файловое действие (Ctrl+Z)",
+                self.undo_last_operation,
+                "Ctrl+Z",
+            ),
+            (
+                "new_folder",
+                "Новая папка",
+                "new-folder",
+                "Создать новую папку в текущем каталоге",
+                self.new_folder,
+                None,
+            ),
+            (
+                "copy",
+                "Копировать",
+                "copy",
+                "Скопировать выбранные объекты",
+                self.copy_selected,
+                None,
+            ),
+            (
+                "move",
+                "Переместить",
+                "move",
+                "Переместить выбранные объекты",
+                self.move_selected,
+                None,
+            ),
+            (
+                "delete",
+                "Удалить",
+                "delete",
+                "Удалить выбранные объекты без корзины (Delete в таблице)",
+                self.delete_selected,
+                None,
+            ),
+            (
+                "rename",
+                "Переименовать",
+                "rename",
+                "Переименовать выбранный объект (F2 в таблице)",
+                self.rename_selected,
+                None,
+            ),
+            (
+                "zip",
+                "Создать ZIP",
+                "zip",
+                "Создать ZIP-архив из выбранных объектов",
+                self.create_zip_from_selection,
+                None,
+            ),
+            (
+                "extract",
+                "Распаковать",
+                "extract",
+                "Распаковать выбранный архив",
+                self.extract_selected_archive,
+                None,
+            ),
+            (
+                "preview",
+                "Содержимое",
+                "preview",
+                "Показать содержимое выбранного архива",
+                self.show_archive_contents,
+                None,
+            ),
+            (
+                "size",
+                "Размер папки",
+                "size",
+                "Посчитать размер выбранной папки",
+                self.calculate_selected_size,
+                None,
+            ),
         ]
 
         actions: dict[str, QAction] = {}
@@ -86,8 +219,12 @@ class ArchiveManagerApp(QMainWindow):
             action.setStatusTip(tooltip)
             if shortcut:
                 action.setShortcut(QKeySequence(shortcut))
-            def on_triggered(_checked: bool = False, cb: Callable[[], None] = callback) -> None:
+
+            def on_triggered(
+                _checked: bool = False, cb: Callable[[], None] = callback
+            ) -> None:
                 cb()
+
             action.triggered.connect(on_triggered)
             self.addAction(action)
             actions[key] = action
@@ -103,8 +240,10 @@ class ArchiveManagerApp(QMainWindow):
         layout.addWidget(self.action_bar)
 
         self.path_bar = PathBar(self.icons, central)
+
         def on_navigate_requested(path_str: str) -> None:
             self.load_directory(Path(path_str))
+
         self.path_bar.navigate_requested.connect(on_navigate_requested)
         self.path_bar.browse_requested.connect(self.choose_directory)
         layout.addWidget(self.path_bar)
@@ -134,7 +273,9 @@ class ArchiveManagerApp(QMainWindow):
         self.statusBar().showMessage(text)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if event.type() == QEvent.Type.MouseButtonPress and isinstance(event, QMouseEvent):
+        if event.type() == QEvent.Type.MouseButtonPress and isinstance(
+            event, QMouseEvent
+        ):
             button = event.button()
             if button == Qt.MouseButton.BackButton:
                 self.go_back()
@@ -144,7 +285,9 @@ class ArchiveManagerApp(QMainWindow):
                 return True
         return super().eventFilter(watched, event)
 
-    def load_directory(self, path: Path, add_history: bool = True, clear_forward: bool = True) -> None:
+    def load_directory(
+        self, path: Path, add_history: bool = True, clear_forward: bool = True
+    ) -> None:
         try:
             path = Path(path).expanduser().resolve()
             if not path.exists() or not path.is_dir():
@@ -166,7 +309,9 @@ class ArchiveManagerApp(QMainWindow):
         self.load_directory(self.current_path, add_history=False)
 
     def choose_directory(self) -> None:
-        selected = QFileDialog.getExistingDirectory(self, "Выберите папку", str(self.current_path))
+        selected = QFileDialog.getExistingDirectory(
+            self, "Выберите папку", str(self.current_path)
+        )
         if selected:
             self.load_directory(Path(selected))
 
@@ -220,7 +365,10 @@ class ArchiveManagerApp(QMainWindow):
             return
         try:
             created = create_folder(self.current_path, name)
-            self._push_undo(f"создание папки {created.name}", lambda created_path=created: delete_items([created_path]))
+            self._push_undo(
+                f"создание папки {created.name}",
+                lambda created_path=created: delete_items([created_path]),
+            )
             self.refresh()
             self.set_status(f"Создана папка: {created.name}")
         except Exception as exc:
@@ -229,9 +377,13 @@ class ArchiveManagerApp(QMainWindow):
     def rename_selected(self) -> None:
         path = self.get_selected_path()
         if path is None:
-            QMessageBox.information(self, "Переименование", "Выберите один файл или папку")
+            QMessageBox.information(
+                self, "Переименование", "Выберите один файл или папку"
+            )
             return
-        new_name, ok = QInputDialog.getText(self, "Переименовать", "Новое имя:", text=path.name)
+        new_name, ok = QInputDialog.getText(
+            self, "Переименовать", "Новое имя:", text=path.name
+        )
         if not ok or not new_name or new_name == path.name:
             return
         try:
@@ -240,6 +392,7 @@ class ArchiveManagerApp(QMainWindow):
             def make_undo(source: Path, target: Path) -> Callable[[], None]:
                 def undo() -> None:
                     source.rename(target)
+
                 return undo
 
             self._push_undo(f"переименование {renamed.name}", make_undo(renamed, path))
@@ -277,12 +430,17 @@ class ArchiveManagerApp(QMainWindow):
         if not paths:
             QMessageBox.information(self, "Копирование", "Выберите файлы или папки")
             return
-        destination = QFileDialog.getExistingDirectory(self, "Куда копировать?", str(self.current_path))
+        destination = QFileDialog.getExistingDirectory(
+            self, "Куда копировать?", str(self.current_path)
+        )
         if not destination:
             return
         try:
             copied = copy_items(paths, Path(destination))
-            self._push_undo(f"копирование объектов: {len(copied)}", lambda copied_paths=copied: delete_items(copied_paths))
+            self._push_undo(
+                f"копирование объектов: {len(copied)}",
+                lambda copied_paths=copied: delete_items(copied_paths),
+            )
             self.refresh()
             self.set_status(f"Скопировано объектов: {len(copied)}")
         except Exception as exc:
@@ -293,7 +451,9 @@ class ArchiveManagerApp(QMainWindow):
         if not paths:
             QMessageBox.information(self, "Перемещение", "Выберите файлы или папки")
             return
-        destination = QFileDialog.getExistingDirectory(self, "Куда переместить?", str(self.current_path))
+        destination = QFileDialog.getExistingDirectory(
+            self, "Куда переместить?", str(self.current_path)
+        )
         if not destination:
             return
         try:
@@ -301,7 +461,9 @@ class ArchiveManagerApp(QMainWindow):
             moved = move_items(paths, Path(destination))
             self._push_undo(
                 f"перемещение объектов: {len(moved)}",
-                lambda moved_pairs=list(zip(originals, moved)): self._undo_move_items(moved_pairs),
+                lambda moved_pairs=list(zip(originals, moved)): self._undo_move_items(
+                    moved_pairs
+                ),
             )
             self.refresh()
             self.set_status(f"Перемещено объектов: {len(moved)}")
@@ -311,7 +473,9 @@ class ArchiveManagerApp(QMainWindow):
     def create_zip_from_selection(self) -> None:
         paths = self.get_selected_paths()
         if not paths:
-            QMessageBox.information(self, "Создать ZIP", "Выберите файлы или папки для архивации")
+            QMessageBox.information(
+                self, "Создать ZIP", "Выберите файлы или папки для архивации"
+            )
             return
 
         default_name = "archive.zip" if len(paths) != 1 else f"{paths[0].stem}.zip"
@@ -335,10 +499,17 @@ class ArchiveManagerApp(QMainWindow):
                 progress=lambda name: status(f"Архивирую: {Path(name).name}"),
             )
 
-        self._start_operation(task, "Ошибка создания архива", lambda created: self._zip_created(Path(created)))
+        self._start_operation(
+            task,
+            "Ошибка создания архива",
+            lambda created: self._zip_created(Path(created)),
+        )
 
     def _zip_created(self, created: Path) -> None:
-        self._push_undo(f"создание архива {created.name}", lambda created_path=created: delete_items([created_path]))
+        self._push_undo(
+            f"создание архива {created.name}",
+            lambda created_path=created: delete_items([created_path]),
+        )
         self.refresh()
         QMessageBox.information(self, "Готово", f"Архив создан:\n{created}")
         self.set_status(f"Архив создан: {created.name}")
@@ -356,17 +527,27 @@ class ArchiveManagerApp(QMainWindow):
                 return
             path = Path(selected)
 
-        destination = QFileDialog.getExistingDirectory(self, "Куда распаковать?", str(path.parent))
+        destination = QFileDialog.getExistingDirectory(
+            self, "Куда распаковать?", str(path.parent)
+        )
         if not destination:
             return
         destination_path = Path(destination)
 
         def task(status: Callable[[str], None]) -> tuple[Path, Path]:
             status("Распаковка архива...")
-            extract_archive(path, destination_path, progress=lambda name: status(f"Распаковываю: {name}"))
+            extract_archive(
+                path,
+                destination_path,
+                progress=lambda name: status(f"Распаковываю: {name}"),
+            )
             return path, destination_path
 
-        self._start_operation(task, "Ошибка распаковки", lambda result: self._archive_extracted(result[0], result[1]))
+        self._start_operation(
+            task,
+            "Ошибка распаковки",
+            lambda result: self._archive_extracted(result[0], result[1]),
+        )
 
     def _archive_extracted(self, archive_path: Path, destination: Path) -> None:
         self.load_directory(destination)
@@ -376,7 +557,9 @@ class ArchiveManagerApp(QMainWindow):
     def calculate_selected_size(self) -> None:
         path = self.get_selected_path()
         if not path or not path.is_dir():
-            QMessageBox.information(self, "Размер", "Выберите папку для подсчёта размера")
+            QMessageBox.information(
+                self, "Размер", "Выберите папку для подсчёта размера"
+            )
             return
         self.calculate_folder_size_for_path(path, show_dialog=True)
 
@@ -392,10 +575,14 @@ class ArchiveManagerApp(QMainWindow):
         self._start_operation(
             task,
             "Ошибка подсчёта размера",
-            lambda result: self._folder_size_ready(result[0], result[1], result[2], show_dialog),
+            lambda result: self._folder_size_ready(
+                result[0], result[1], result[2], show_dialog
+            ),
         )
 
-    def _folder_size_ready(self, path: Path, total_size: int, total_files: int, show_dialog: bool = True) -> None:
+    def _folder_size_ready(
+        self, path: Path, total_size: int, total_files: int, show_dialog: bool = True
+    ) -> None:
         self.file_table.set_folder_size(path, total_size)
         if show_dialog:
             QMessageBox.information(
@@ -474,7 +661,9 @@ class ArchiveManagerApp(QMainWindow):
         if cancelled:
             self.set_status("Поиск остановлен")
         else:
-            self.set_status(f"Поиск завершён. Найдено: {self.search_panel.result_count()}")
+            self.set_status(
+                f"Поиск завершён. Найдено: {self.search_panel.result_count()}"
+            )
         self.search_cancel_event = None
 
     def _show_search_error(self, error: str) -> None:
@@ -494,7 +683,9 @@ class ArchiveManagerApp(QMainWindow):
             else:
                 QMessageBox.warning(self, "Поиск", "Файл уже не существует")
         except Exception as exc:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось открыть результат:\n{exc}")
+            QMessageBox.critical(
+                self, "Ошибка", f"Не удалось открыть результат:\n{exc}"
+            )
 
     def show_file_context_menu(self, pos: QPoint) -> None:
         menu = QMenu(self)
@@ -519,8 +710,10 @@ class ArchiveManagerApp(QMainWindow):
         worker = OperationWorker(callback)
         worker.signals.status.connect(self.set_status)
         worker.signals.result.connect(on_result)
+
         def on_op_error(error_msg: str) -> None:
             self._show_operation_error(error_status, error_msg)
+
         worker.signals.error.connect(on_op_error)
         self._track_worker(worker)
         self.thread_pool.start(worker)
@@ -530,12 +723,16 @@ class ArchiveManagerApp(QMainWindow):
         self.workers.append(worker)
         signals = getattr(worker, "signals", None)
         if signals is not None and hasattr(signals, "finished"):
+
             def on_finished(*args: Any, task: QRunnable = worker) -> None:
                 self._untrack_worker(task)
+
             signals.finished.connect(on_finished)
         if signals is not None and hasattr(signals, "error"):
+
             def on_error(*args: Any, task: QRunnable = worker) -> None:
                 self._untrack_worker(task)
+
             signals.error.connect(on_error)
 
     def _untrack_worker(self, worker: QRunnable) -> None:
@@ -561,13 +758,17 @@ class ArchiveManagerApp(QMainWindow):
             self.refresh()
             self.set_status(f"Отменено: {description}")
         except Exception as exc:
-            QMessageBox.critical(self, "Отмена действия", f"Не удалось отменить действие:\n{exc}")
+            QMessageBox.critical(
+                self, "Отмена действия", f"Не удалось отменить действие:\n{exc}"
+            )
             self.set_status("Ошибка отмены действия")
 
     def _undo_move_items(self, moved_pairs: list[tuple[Path, Path]]) -> None:
         for original, moved in reversed(moved_pairs):
             if original.exists():
-                raise FileExistsError(f"Нельзя вернуть объект, путь уже занят: {original}")
+                raise FileExistsError(
+                    f"Нельзя вернуть объект, путь уже занят: {original}"
+                )
             shutil.move(str(moved), str(original))
 
 

@@ -47,7 +47,11 @@ def list_directory(path: Path) -> list[FileEntry]:
         try:
             stat = child.stat()
             is_dir = child.is_dir()
-            kind = "Папка" if is_dir else child.suffix.lower().lstrip(".").upper() or "Файл"
+            kind = (
+                "Папка"
+                if is_dir
+                else child.suffix.lower().lstrip(".").upper() or "Файл"
+            )
             size = None if is_dir else stat.st_size
             modified = datetime.fromtimestamp(stat.st_mtime)
             entries.append(
@@ -166,7 +170,7 @@ def create_folder(parent: Path, name: str) -> Path:
 def calculate_folder_size(path: Path | str) -> tuple[int, int]:
     total_size = 0
     total_files = 0
-    
+
     def scan(p: str) -> None:
         nonlocal total_size, total_files
         try:
@@ -179,6 +183,6 @@ def calculate_folder_size(path: Path | str) -> tuple[int, int]:
                         scan(entry.path)
         except OSError:
             pass
-            
+
     scan(str(path))
     return total_size, total_files

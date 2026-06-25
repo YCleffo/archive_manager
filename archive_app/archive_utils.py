@@ -15,7 +15,11 @@ SUPPORTED_ARCHIVES = (".zip", ".tar", ".gz", ".tgz", ".bz2")
 def _common_parent(paths: list[Path]) -> Path:
     if len(paths) == 1:
         return paths[0].parent
-    return Path(os.path.commonpath([str(path.parent if path.is_file() else path.parent) for path in paths]))
+    return Path(
+        os.path.commonpath(
+            [str(path.parent if path.is_file() else path.parent) for path in paths]
+        )
+    )
 
 
 def create_zip_archive(
@@ -35,7 +39,9 @@ def create_zip_archive(
     output_zip.parent.mkdir(parents=True, exist_ok=True)
     common_parent = _common_parent(paths)
 
-    with zipfile.ZipFile(output_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+    with zipfile.ZipFile(
+        output_zip, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6
+    ) as archive:
         for source in paths:
             if source.is_dir():
                 # Empty folders are stored too, otherwise they disappear from ZIP.

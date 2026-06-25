@@ -156,7 +156,13 @@ class IconFactory:
         path.cubicTo(p(15.8, 15), p(13.4, 16.4), p(10.4, 16.4))
         return path
 
-    def _draw_folder(self, painter: QPainter, r: Callable[[float, float, float, float], QRectF], p: Callable[[float, float], QPointF], plus: bool) -> None:
+    def _draw_folder(
+        self,
+        painter: QPainter,
+        r: Callable[[float, float, float, float], QRectF],
+        p: Callable[[float, float], QPointF],
+        plus: bool,
+    ) -> None:
         path = QPainterPath()
         path.moveTo(p(3.5, 7.5))
         path.lineTo(p(7.5, 7.5))

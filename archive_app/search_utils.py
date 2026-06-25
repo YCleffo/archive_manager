@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Generator
 
-
 TEXT_EXTENSIONS = {
     ".txt",
     ".md",
@@ -106,7 +105,10 @@ def search_files(
             content_match = False
 
             if include_content and not is_dir:
-                if path.suffix.lower() in TEXT_EXTENSIONS and stat.st_size <= max_content_bytes:
+                if (
+                    path.suffix.lower() in TEXT_EXTENSIONS
+                    and stat.st_size <= max_content_bytes
+                ):
                     try:
                         text = _read_text_preview(path, max_content_bytes).casefold()
                         content_match = query_clean in text
@@ -115,7 +117,11 @@ def search_files(
 
             if name_match or content_match:
                 found += 1
-                kind = "Папка" if is_dir else path.suffix.lower().lstrip(".").upper() or "Файл"
+                kind = (
+                    "Папка"
+                    if is_dir
+                    else path.suffix.lower().lstrip(".").upper() or "Файл"
+                )
                 yield SearchResult(
                     path=path,
                     kind=kind,

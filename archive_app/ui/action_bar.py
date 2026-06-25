@@ -4,14 +4,26 @@ from collections.abc import Mapping
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QMenu, QSizePolicy, QToolButton, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QMenu,
+    QSizePolicy,
+    QToolButton,
+    QWidget,
+)
 
 from .icons import IconFactory
 from .theme import make_interactive
 
 
 class ActionBar(QFrame):
-    def __init__(self, actions: Mapping[str, QAction], icons: IconFactory, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        actions: Mapping[str, QAction],
+        icons: IconFactory,
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("SurfaceBar")
 
@@ -47,7 +59,9 @@ class ActionBar(QFrame):
         line.setStyleSheet("background: #e3e9f0; margin: 4px 4px;")
         return line
 
-    def _more_button(self, actions: Mapping[str, QAction], icons: IconFactory) -> QToolButton:
+    def _more_button(
+        self, actions: Mapping[str, QAction], icons: IconFactory
+    ) -> QToolButton:
         menu = QMenu(self)
         for key in ("undo", "rename", "zip", "extract", "preview", "size"):
             menu.addAction(actions[key])
