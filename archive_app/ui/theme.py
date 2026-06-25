@@ -81,8 +81,27 @@ QLineEdit {
     selection-color: #ffffff;
 }
 
-QLineEdit:focus {
+QTextEdit,
+QPlainTextEdit {
+    background: #ffffff;
+    border: 1px solid #cfd8e3;
+    border-radius: 7px;
+    padding: 8px;
+    selection-background-color: #2f6fbd;
+    selection-color: #ffffff;
+}
+
+QLineEdit:focus,
+QTextEdit:focus,
+QPlainTextEdit:focus {
     border-color: #6e97c7;
+}
+
+QToolTip {
+    background: #ffffff;
+    color: #1d2733;
+    border: 1px solid #cfd8e3;
+    padding: 4px;
 }
 
 QCheckBox {
