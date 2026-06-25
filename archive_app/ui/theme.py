@@ -71,6 +71,14 @@ QPushButton#SizeButton:hover {
     border-color: #aab8c8;
 }
 
+QWidget#SizeCell {
+    background: transparent;
+}
+
+QWidget#SizeCell[rowHover="true"] {
+    background: #eef5ff;
+}
+
 QLineEdit {
     background: #ffffff;
     border: 1px solid #cfd8e3;
@@ -175,10 +183,6 @@ QTableWidget::item {
 QTableWidget::item:focus {
     border: 0;
     outline: 0;
-}
-
-QTableWidget::item:hover {
-    background: #f3f7fb;
 }
 
 QTableWidget::item:selected {

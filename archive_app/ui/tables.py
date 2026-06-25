@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QPoint, Qt, Signal
-from PySide6.QtGui import QKeyEvent, QPainter
+from PySide6.QtCore import QEvent, QModelIndex, QPersistentModelIndex, QObject, QPoint, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QKeyEvent, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -27,6 +27,7 @@ from .theme import make_interactive
 
 SORT_ROLE = Qt.ItemDataRole.UserRole
 PATH_ROLE = Qt.ItemDataRole.UserRole + 1
+HOVER_ROLE = Qt.ItemDataRole.UserRole + 2
 
 
 class SortableTableWidgetItem(QTableWidgetItem):
@@ -44,6 +45,9 @@ class NoFocusDelegate(QStyledItemDelegate):
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
         clean_option = QStyleOptionViewItem(option)
         clean_option.state &= ~QStyle.StateFlag.State_HasFocus
+        clean_option.state &= ~QStyle.StateFlag.State_MouseOver
+        if index.data(HOVER_ROLE) and not clean_option.state & QStyle.StateFlag.State_Selected:
+            clean_option.backgroundBrush = QBrush(QColor("#eef5ff"))
         super().paint(painter, clean_option, index)
 
 
@@ -69,6 +73,7 @@ class FileTable(QTableWidget):
     def __init__(self, icons: IconFactory, parent: QWidget | None = None) -> None:
         super().__init__(0, 4, parent)
         self.icons = icons
+        self.hovered_row = -1
         self.setObjectName("FileTable")
         self.setHorizontalHeaderLabels(["Имя", "Тип", "Размер", "Изменён"])
         configure_table(self, multi_select=True)
@@ -91,6 +96,8 @@ class FileTable(QTableWidget):
         def on_cell_double_clicked(_row: int, _column: int) -> None:
             self.open_requested.emit()
         self.cellDoubleClicked.connect(on_cell_double_clicked)
+        self.itemEntered.connect(self._on_item_entered)
+        self.viewport().installEventFilter(self)
 
     def set_entries(self, entries: list[FileEntry]) -> None:
         self.setSortingEnabled(False)
@@ -164,7 +171,9 @@ class FileTable(QTableWidget):
 
     def _set_size_button(self, row: int, path: Path) -> None:
         wrapper = QWidget(self)
-        wrapper.setStyleSheet("background: transparent;")
+        wrapper.setObjectName("SizeCell")
+        wrapper.setProperty("rowIndex", row)
+        wrapper.installEventFilter(self)
         layout = QHBoxLayout(wrapper)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(0)
@@ -173,6 +182,8 @@ class FileTable(QTableWidget):
         button.setObjectName("SizeButton")
         button.setFixedHeight(26)
         button.setMaximumWidth(96)
+        button.setProperty("rowIndex", row)
+        button.installEventFilter(self)
         make_interactive(button, "Посчитать размер этой папки")
 
         def on_clicked(_checked: bool = False, requested_path: Path = path) -> None:
@@ -181,6 +192,41 @@ class FileTable(QTableWidget):
         button.clicked.connect(on_clicked)
         layout.addWidget(button, alignment=Qt.AlignmentFlag.AlignCenter)
         self.setCellWidget(row, 2, wrapper)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched == self.viewport() and event.type() == QEvent.Type.Leave:
+            self._set_hovered_row(-1)
+        elif event.type() == QEvent.Type.Enter and hasattr(watched, "property"):
+            row = watched.property("rowIndex")
+            if isinstance(row, int):
+                self._set_hovered_row(row)
+        return super().eventFilter(watched, event)
+
+    def _on_item_entered(self, item: QTableWidgetItem) -> None:
+        self._set_hovered_row(item.row())
+
+    def _set_hovered_row(self, row: int) -> None:
+        if row == self.hovered_row:
+            return
+        old_row = self.hovered_row
+        self.hovered_row = row
+        if old_row >= 0:
+            self._update_row_hover(old_row, False)
+        if row >= 0:
+            self._update_row_hover(row, True)
+
+    def _update_row_hover(self, row: int, active: bool) -> None:
+        if row < 0 or row >= self.rowCount():
+            return
+        for column in range(self.columnCount()):
+            item = self.item(row, column)
+            if item is not None:
+                item.setData(HOVER_ROLE, active)
+        widget = self.cellWidget(row, 2)
+        if widget is not None:  # type: ignore[unnecessary-comparison]
+            widget.setProperty("rowHover", active)
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
 
     def _show_context_menu(self, pos: QPoint) -> None:
         index = self.indexAt(pos)
@@ -197,6 +243,7 @@ class SearchResultsTable(QTableWidget):
     def __init__(self, icons: IconFactory, parent: QWidget | None = None) -> None:
         super().__init__(0, 5, parent)
         self.icons = icons
+        self.hovered_row = -1
         self.setHorizontalHeaderLabels(["Результат", "Совпадение", "Тип", "Размер", "Изменён"])
         configure_table(self, multi_select=False)
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -215,6 +262,8 @@ class SearchResultsTable(QTableWidget):
         def on_search_cell_double_clicked(_row: int, _column: int) -> None:
             self.open_requested.emit()
         self.cellDoubleClicked.connect(on_search_cell_double_clicked)
+        self.itemEntered.connect(self._on_item_entered)
+        self.viewport().installEventFilter(self)
 
     def add_result(self, result: SearchResult) -> None:
         sorting = self.isSortingEnabled()
@@ -263,6 +312,32 @@ class SearchResultsTable(QTableWidget):
             return
         super().keyPressEvent(event)
 
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched == self.viewport() and event.type() == QEvent.Type.Leave:
+            self._set_hovered_row(-1)
+        return super().eventFilter(watched, event)
+
+    def _on_item_entered(self, item: QTableWidgetItem) -> None:
+        self._set_hovered_row(item.row())
+
+    def _set_hovered_row(self, row: int) -> None:
+        if row == self.hovered_row:
+            return
+        old_row = self.hovered_row
+        self.hovered_row = row
+        if old_row >= 0:
+            self._update_row_hover(old_row, False)
+        if row >= 0:
+            self._update_row_hover(row, True)
+
+    def _update_row_hover(self, row: int, active: bool) -> None:
+        if row < 0 or row >= self.rowCount():
+            return
+        for column in range(self.columnCount()):
+            item = self.item(row, column)
+            if item is not None:
+                item.setData(HOVER_ROLE, active)
+
 
 def configure_table(table: QTableWidget, multi_select: bool) -> None:
     table.setFrameShape(QFrame.Shape.NoFrame)
@@ -285,6 +360,7 @@ def configure_table(table: QTableWidget, multi_select: bool) -> None:
     table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
     table.setItemDelegate(NoFocusDelegate(table))
     table.setMouseTracking(True)
+    table.viewport().setMouseTracking(True)
 
 
 def set_header_alignments(table: QTableWidget, alignments: dict[int, Qt.AlignmentFlag]) -> None:
