@@ -227,6 +227,29 @@ QToolTip {
     border-radius: 6px;
     padding: 6px 8px;
 }
+
+QListView {
+    background: #ffffff;
+    border: 1px solid #d8e0ea;
+    border-radius: 8px;
+    padding: 4px;
+    outline: 0;
+}
+
+QListView::item {
+    border-radius: 6px;
+    padding: 6px 10px;
+    margin: 1px 0;
+}
+
+QListView::item:hover {
+    background: #f3f7fb;
+}
+
+QListView::item:selected {
+    background: #edf4ff;
+    color: #172033;
+}
 """
 
 
