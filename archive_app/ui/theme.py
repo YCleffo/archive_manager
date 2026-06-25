@@ -31,6 +31,12 @@ QPushButton {
     border-radius: 7px;
     min-height: 32px;
     padding: 6px 11px;
+    outline: 0;
+}
+
+QToolButton:focus,
+QPushButton:focus {
+    border-color: #cfd8e3;
 }
 
 QToolButton:hover,
@@ -89,6 +95,7 @@ QTableWidget {
     border: 0;
     border-radius: 9px;
     gridline-color: transparent;
+    outline: 0;
     selection-background-color: #e6f0ff;
     selection-color: #152033;
 }
@@ -161,7 +168,13 @@ QScrollBar::sub-page:horizontal {
 
 QTableWidget::item {
     border: 0;
+    outline: 0;
     padding: 0 10px;
+}
+
+QTableWidget::item:focus {
+    border: 0;
+    outline: 0;
 }
 
 QTableWidget::item:hover {

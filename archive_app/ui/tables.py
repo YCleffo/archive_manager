@@ -3,14 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 
 
-from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QPoint, Qt, Signal
+from PySide6.QtGui import QKeyEvent, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
     QHBoxLayout,
     QHeaderView,
     QPushButton,
+    QStyle,
+    QStyleOptionViewItem,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -35,6 +38,13 @@ class SortableTableWidgetItem(QTableWidgetItem):
         return str(left if left is not None else self.text()).casefold() < str(
             right if right is not None else other.text()
         ).casefold()
+
+
+class NoFocusDelegate(QStyledItemDelegate):
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
+        clean_option = QStyleOptionViewItem(option)
+        clean_option.state &= ~QStyle.StateFlag.State_HasFocus
+        super().paint(painter, clean_option, index)
 
 
 class TableCard(QFrame):
@@ -273,6 +283,7 @@ def configure_table(table: QTableWidget, multi_select: bool) -> None:
     table.verticalHeader().setDefaultSectionSize(36)
     table.horizontalHeader().setHighlightSections(False)
     table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+    table.setItemDelegate(NoFocusDelegate(table))
     table.setMouseTracking(True)
 
 
