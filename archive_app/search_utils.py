@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import threading
 from dataclasses import dataclass
 from datetime import datetime
@@ -36,6 +37,20 @@ TEXT_EXTENSIONS = {
     ".sh",
     ".bat",
     ".ps1",
+}
+
+EXCLUDED_DIR_NAMES = {
+    ".git",
+    ".hg",
+    ".svn",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "node_modules",
+    "dist",
+    "build",
+    ".idea",
+    ".vscode",
 }
 
 
@@ -89,45 +104,55 @@ def search_files(
     extensions = parse_extensions(extensions_raw)
     found = 0
 
-    for path in root.rglob("*"):
+    for dirpath, dirnames, filenames in os.walk(root):
         if cancel_event and cancel_event.is_set():
             return
-        if found >= max_results:
-            return
+            
+        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIR_NAMES and not os.path.islink(os.path.join(dirpath, d))]
 
-        try:
-            is_dir = path.is_dir()
-            if extensions and not is_dir and path.suffix.lower() not in extensions:
+        for name in dirnames + filenames:
+            if cancel_event and cancel_event.is_set():
+                return
+            if found >= max_results:
+                return
+
+            try:
+                path = Path(dirpath) / name
+                if path.is_symlink():
+                    continue
+
+                is_dir = path.is_dir()
+                if extensions and not is_dir and path.suffix.lower() not in extensions:
+                    continue
+
+                stat = path.stat()
+                name_match = query_clean in path.name.casefold()
+                content_match = False
+
+                if include_content and not is_dir:
+                    if (
+                        path.suffix.lower() in TEXT_EXTENSIONS
+                        and stat.st_size <= max_content_bytes
+                    ):
+                        try:
+                            text = _read_text_preview(path, max_content_bytes).casefold()
+                            content_match = query_clean in text
+                        except (OSError, UnicodeError):
+                            content_match = False
+
+                if name_match or content_match:
+                    found += 1
+                    kind = (
+                        "Папка"
+                        if is_dir
+                        else path.suffix.lower().lstrip(".").upper() or "Файл"
+                    )
+                    yield SearchResult(
+                        path=path,
+                        kind=kind,
+                        size=None if is_dir else stat.st_size,
+                        modified=datetime.fromtimestamp(stat.st_mtime),
+                        match_type="имя" if name_match else "содержимое",
+                    )
+            except (PermissionError, FileNotFoundError, OSError):
                 continue
-
-            stat = path.stat()
-            name_match = query_clean in path.name.casefold()
-            content_match = False
-
-            if include_content and not is_dir:
-                if (
-                    path.suffix.lower() in TEXT_EXTENSIONS
-                    and stat.st_size <= max_content_bytes
-                ):
-                    try:
-                        text = _read_text_preview(path, max_content_bytes).casefold()
-                        content_match = query_clean in text
-                    except (OSError, UnicodeError):
-                        content_match = False
-
-            if name_match or content_match:
-                found += 1
-                kind = (
-                    "Папка"
-                    if is_dir
-                    else path.suffix.lower().lstrip(".").upper() or "Файл"
-                )
-                yield SearchResult(
-                    path=path,
-                    kind=kind,
-                    size=None if is_dir else stat.st_size,
-                    modified=datetime.fromtimestamp(stat.st_mtime),
-                    match_type="имя" if name_match else "содержимое",
-                )
-        except (PermissionError, FileNotFoundError, OSError):
-            continue

@@ -65,6 +65,8 @@ class ArchiveManagerApp(QMainWindow):
         self.forward_history: list[Path] = []
         self.undo_stack: list[tuple[str, Callable[[], None]]] = []
         self.search_cancel_event: threading.Event | None = None
+        self.search_generation = 0
+        self.load_generation = 0
         self.thread_pool = QThreadPool.globalInstance()
         self.workers: list[QRunnable] = []
 
@@ -328,6 +330,18 @@ class ArchiveManagerApp(QMainWindow):
         return super().eventFilter(watched, event)
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if self.thread_pool.activeThreadCount() > 0:
+            answer = QMessageBox.question(
+                self,
+                "Выход",
+                "Выполняются фоновые операции.\nВы уверены, что хотите закрыть программу?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+                
         self.stop_search(silent=True)
         self.thread_pool.clear()
         self.thread_pool.waitForDone(1000)
@@ -342,11 +356,16 @@ class ArchiveManagerApp(QMainWindow):
             if not path.exists() or not path.is_dir():
                 raise NotADirectoryError(str(path))
             
+            self.load_generation += 1
+            generation = self.load_generation
+            
             def task(status: Callable[[str], None]) -> list[FileEntry]:
                 status(f"Чтение директории: {path.name}...")
                 return list_directory(path)
 
             def on_result(entries: list[FileEntry]) -> None:
+                if generation != self.load_generation:
+                    return
                 if add_history and path != self.current_path:
                     self.history.append(self.current_path)
                     if clear_forward:
@@ -692,6 +711,9 @@ class ArchiveManagerApp(QMainWindow):
         self.stop_search(silent=True)
         self.search_panel.clear_results()
 
+        self.search_generation += 1
+        generation = self.search_generation
+
         self.search_cancel_event = threading.Event()
         worker = SearchWorker(
             search_function=search_files,
@@ -701,9 +723,18 @@ class ArchiveManagerApp(QMainWindow):
             include_content=self.search_panel.include_content(),
             cancel_event=self.search_cancel_event,
         )
-        worker.signals.result.connect(self.insert_search_result)
-        worker.signals.error.connect(self._show_search_error)
-        worker.signals.finished.connect(self._search_finished)
+        def on_result(result: SearchResult, gen: int = generation) -> None:
+            self.insert_search_result(result, gen)
+            
+        def on_error(error: str, gen: int = generation) -> None:
+            self._show_search_error(error, gen)
+            
+        def on_finished(cancelled: bool, gen: int = generation) -> None:
+            self._search_finished(cancelled, gen)
+
+        worker.signals.result.connect(on_result)
+        worker.signals.error.connect(on_error)
+        worker.signals.finished.connect(on_finished)
         self._track_worker(worker)
         self.thread_pool.start(worker)
         self.set_status("Поиск запущен...")
@@ -714,10 +745,14 @@ class ArchiveManagerApp(QMainWindow):
             if not silent:
                 self.set_status("Поиск остановлен")
 
-    def insert_search_result(self, result: SearchResult) -> None:
+    def insert_search_result(self, result: SearchResult, generation: int) -> None:
+        if generation != self.search_generation:
+            return
         self.search_panel.add_result(result)
 
-    def _search_finished(self, cancelled: bool) -> None:
+    def _search_finished(self, cancelled: bool, generation: int) -> None:
+        if generation != self.search_generation:
+            return
         if cancelled:
             self.set_status("Поиск остановлен")
         else:
@@ -726,7 +761,9 @@ class ArchiveManagerApp(QMainWindow):
             )
         self.search_cancel_event = None
 
-    def _show_search_error(self, error: str) -> None:
+    def _show_search_error(self, error: str, generation: int) -> None:
+        if generation != self.search_generation:
+            return
         QMessageBox.critical(self, "Ошибка поиска", error)
         self.set_status("Ошибка поиска")
         self.search_cancel_event = None

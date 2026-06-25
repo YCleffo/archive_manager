@@ -16,6 +16,7 @@ from .theme import make_interactive
 
 
 import os
+from pathlib import Path
 from PySide6.QtCore import QStringListModel, QObject
 
 
@@ -29,30 +30,28 @@ class PathCompleter(QCompleter):
         self.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
 
     def update_suggestions(self, text: str) -> None:
+        text = os.path.expanduser(text.strip())
+
         if not text:
             self.string_list_model.setStringList([])
             return
 
-        text = text.replace("/", "\\")
-        if text.endswith("\\"):
-            dir_path = text
-        else:
-            dir_path = os.path.dirname(text)
-            if not dir_path.endswith("\\") and dir_path:
-                dir_path += "\\"
+        ends_with_sep = text.endswith((os.sep, "/", "\\"))
+        current = Path(text)
+        dir_path = current if ends_with_sep else current.parent
 
-        if not dir_path or not os.path.isdir(dir_path):
+        if not dir_path.exists() or not dir_path.is_dir():
             self.string_list_model.setStringList([])
             return
 
         try:
             suggestions: list[str] = []
             with os.scandir(dir_path) as it:
-                for entry in it:
-                    if entry.is_dir():
-                        suggestions.append(os.path.join(dir_path, entry.name) + "\\")
-                    else:
-                        suggestions.append(os.path.join(dir_path, entry.name))
+                entries = sorted(it, key=lambda e: (not e.is_dir(), e.name.casefold()))
+                for entry in entries[:100]:
+                    suffix = os.sep if entry.is_dir() else ""
+                    suggestions.append(str(Path(entry.path)) + suffix)
+
             self.string_list_model.setStringList(suggestions)
         except OSError:
             self.string_list_model.setStringList([])
@@ -80,6 +79,11 @@ class PathBar(QFrame):
 
         self.completer = PathCompleter(self)
         self.path_edit.setCompleter(self.completer)
+        popup = self.completer.popup()
+        if popup is not None:
+            popup.setObjectName("PathCompleterPopup")
+            popup.setWindowFlags(popup.windowFlags() | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint)
+            popup.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.path_edit.textEdited.connect(self.completer.update_suggestions)
 
         layout.addWidget(self.path_edit, 1)

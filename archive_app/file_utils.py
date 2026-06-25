@@ -11,6 +11,10 @@ from typing import Iterable
 
 from send2trash import send2trash
 
+def _is_same_or_inside(child: Path, parent: Path) -> bool:
+    child = child.resolve()
+    parent = parent.resolve()
+    return child == parent or parent in child.parents
 
 @dataclass(frozen=True)
 class FileEntry:
@@ -116,16 +120,8 @@ def copy_items(paths: Iterable[Path], destination: Path) -> list[Path]:
     for source in paths:
         source = Path(source).resolve()
         
-        if source.is_dir():
-            try:
-                if destination == source or destination.is_relative_to(source):
-                    raise ValueError(f"Нельзя скопировать папку внутрь самой себя: {source.name}")
-            except AttributeError:
-                try:
-                    destination.relative_to(source)
-                    raise ValueError(f"Нельзя скопировать папку внутрь самой себя: {source.name}")
-                except ValueError:
-                    pass
+        if source.is_dir() and _is_same_or_inside(destination, source):
+            raise ValueError(f"Нельзя скопировать или переместить папку внутрь самой себя: {source.name}")
 
         target = ensure_unique_path(destination / source.name)
         if source.is_dir():
@@ -143,16 +139,8 @@ def move_items(paths: Iterable[Path], destination: Path) -> list[Path]:
     for source in paths:
         source = Path(source).resolve()
         
-        if source.is_dir():
-            try:
-                if destination == source or destination.is_relative_to(source):
-                    raise ValueError(f"Нельзя переместить папку внутрь самой себя: {source.name}")
-            except AttributeError:
-                try:
-                    destination.relative_to(source)
-                    raise ValueError(f"Нельзя переместить папку внутрь самой себя: {source.name}")
-                except ValueError:
-                    pass
+        if source.is_dir() and _is_same_or_inside(destination, source):
+            raise ValueError(f"Нельзя скопировать или переместить папку внутрь самой себя: {source.name}")
                     
         target = ensure_unique_path(destination / source.name)
         shutil.move(str(source), str(target))

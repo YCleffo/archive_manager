@@ -250,6 +250,29 @@ QListView::item:selected {
     background: #edf4ff;
     color: #172033;
 }
+
+QListView#PathCompleterPopup {
+    background: #f5f7fa;
+    border: 1px solid #d8e0ea;
+    border-radius: 8px;
+    padding: 6px;
+    outline: 0;
+}
+
+QListView#PathCompleterPopup::item {
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 2px 0;
+}
+
+QListView#PathCompleterPopup::item:hover {
+    background: #e8eef6;
+}
+
+QListView#PathCompleterPopup::item:selected {
+    background: #2f6fbd;
+    color: #ffffff;
+}
 """
 
 
