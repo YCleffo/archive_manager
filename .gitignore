@@ -19,3 +19,5 @@ dist/
 
 /tools/ffmpeg.exe
 /tools/ffprobe.exe
+archive_app/tools/ffmpeg.exe
+ffprobe.exe
