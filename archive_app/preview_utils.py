@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, cast
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QImage, QImageReader
@@ -58,6 +58,27 @@ class PreviewResult:
     details: str
     image: QImage | None = None
     error: str | None = None
+
+
+def get_ffmpeg_path() -> str | None:
+    """Возвращает путь к ffmpeg для превью видео.
+
+    Порядок поиска:
+    1. `tools/ffmpeg.exe` рядом с проектом или внутри PyInstaller-bundle.
+    2. ffmpeg из зависимости `imageio-ffmpeg`.
+    3. системный ffmpeg из PATH.
+
+    В production-архиве `tools/ffmpeg.exe` можно не хранить: сборка берёт
+    ffmpeg из `imageio-ffmpeg`, а при желании внешний бинарник можно положить
+    в `tools/ffmpeg.exe` перед сборкой.
+    """
+    return _find_ffmpeg()
+
+
+def _bundle_root() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+    return Path(__file__).resolve().parents[1]
 
 
 def build_preview(path: Path, max_size: QSize = PREVIEW_MAX_SIZE) -> PreviewResult:
@@ -236,11 +257,14 @@ def _build_info_preview(path: Path, kind: str) -> PreviewResult:
 def _extract_video_frame(
     path: Path, max_size: QSize
 ) -> tuple[QImage | None, str | None]:
-    ffmpeg = _find_ffmpeg()
+    ffmpeg = get_ffmpeg_path()
     if ffmpeg is None:
         return (
             None,
-            "Для превью видео нужен ffmpeg. Он ставится через зависимость imageio-ffmpeg из requirements.txt.",
+            (
+                "Для превью видео нужен ffmpeg. Установи зависимости "
+                "из requirements.txt или положи ffmpeg.exe в папку tools."
+            ),
         )
 
     width = max(120, max_size.width())
@@ -309,15 +333,23 @@ def _extract_video_frame(
 
 
 def _find_ffmpeg() -> str | None:
+    executable_name = "ffmpeg.exe" if sys.platform.startswith("win") else "ffmpeg"
+    bundled_ffmpeg = _bundle_root() / "tools" / executable_name
+
+    if bundled_ffmpeg.exists():
+        return str(bundled_ffmpeg)
+
     try:
         module = importlib.import_module("imageio_ffmpeg")
         getter = getattr(module, "get_ffmpeg_exe", None)
         if callable(getter):
-            executable = getter()
+            get_executable = cast(Callable[[], str], getter)
+            executable = get_executable()
             if executable:
-                return str(executable)
+                return executable
     except Exception:
         pass
+
     return shutil.which("ffmpeg")
 
 
