@@ -105,30 +105,49 @@ python3 main.py
 
 ## Архитектура проекта
 
-Проект имеет модульную структуру с четким разделением логики и пользовательского интерфейса:
+Проект разделён на контроллеры, UI-компоненты, табличные виджеты и независимые preview-генераторы.
+`archive_app/app.py` теперь отвечает за сборку компонентов и связывание сигналов, а бизнес-логика вынесена в отдельные классы.
+
 ```text
 archive_manager/
-├── main.py                    # Точка входа в приложение
-├── requirements.txt           # Зависимости
-├── build_exe_onefile.bat      # Скрипт сборки под Windows
-├── run.bat                    # Скрипт быстрого запуска
-├── README.md                  # Документация (текущий файл)
-├── packaging/                 # Манифесты и метаданные сборки (версия, иконки)
-├── tests/                     # Автоматизированные тесты (pytest)
-└── archive_app/               # Основной пакет приложения
-    ├── app.py                 # Логика главного окна
-    ├── archive_utils.py       # Модуль работы с архивами
-    ├── file_utils.py          # Операции с файловой системой
-    ├── preview_utils.py       # Логика генерации превью
-    ├── search_utils.py        # Модуль поиска файлов и контента
-    └── ui/                    # UI-компоненты
-        ├── action_bar.py      # Панель инструментов
-        ├── dialogs.py         # Окна сообщений и диалоги
-        ├── navigation_bar.py  # Навигационная панель
-        ├── search_panel.py    # Виджет поиска
-        ├── tables.py          # Табличные представления
-        ├── theme.py           # Конфигурация стилей
-        └── workers.py         # Фоновые потоки и задачи
+├── main.py                         # Точка входа в приложение
+├── requirements.txt                # Зависимости
+├── requirements-dev.txt            # Зависимости для тестов и сборки
+├── build_exe_onefile.bat           # Production-сборка в единый EXE
+├── run.bat                         # Быстрый запуск из исходников
+├── packaging/windows/              # Manifest и version info для EXE
+├── tests/                          # Автоматизированные тесты pytest
+└── archive_app/                    # Основной пакет приложения
+    ├── app.py                      # Сборка окна и связывание компонентов
+    ├── archive_utils.py            # Безопасная работа с архивами
+    ├── file_utils.py               # Низкоуровневые файловые операции
+    ├── preview_utils.py            # Фасад предпросмотра
+    ├── search_utils.py             # Поиск файлов и текста
+    ├── controllers/                # Контроллеры бизнес-логики
+    │   ├── action_manager.py       # QAction, горячие клавиши и меню действий
+    │   ├── clipboard_manager.py    # Буфер копирования/вырезания
+    │   ├── file_operations.py      # Удаление, копирование, ZIP, распаковка
+    │   └── navigation_manager.py   # История назад/вперёд/вверх/домой
+    ├── previewers/                 # Генераторы превью по типам файлов
+    │   ├── dispatcher.py           # Выбор нужного previewer
+    │   ├── image_preview.py        # Фото, HEIC/HEIF
+    │   ├── video_preview.py        # Видео-кадры через ffmpeg/imageio-ffmpeg
+    │   ├── document_preview.py     # Документы и PDF
+    │   ├── audio_preview.py        # Аудио и обложки
+    │   └── common.py               # Общие типы и форматирование
+    └── ui/                         # Виджеты интерфейса
+        ├── action_bar.py           # Адаптивная панель действий
+        ├── dialogs.py              # Диалоги
+        ├── file_table.py           # Таблица файлов
+        ├── search_table.py         # Таблица результатов поиска
+        ├── table_delegates.py      # Делегаты и стили отрисовки таблиц
+        ├── tables.py               # Совместимый фасад импортов таблиц
+        ├── window_layout.py        # Сборка UI главного окна
+        ├── navigation_bar.py       # Навигационная панель
+        ├── preview_panel.py        # Панель предпросмотра
+        ├── search_panel.py         # Панель поиска
+        ├── theme.py                # QSS-стили
+        └── workers.py              # Фоновые задачи
 ```
 
 ## Тестирование

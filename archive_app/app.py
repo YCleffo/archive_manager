@@ -9,19 +9,14 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRunnable, Qt, QThreadPool, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QMouseEvent, QColor, QIcon
+from PySide6.QtGui import QCloseEvent, QMouseEvent, QColor, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QInputDialog,
     QMainWindow,
     QMenu,
     QMessageBox,
-    QVBoxLayout,
-    QWidget,
-    QLabel,
     QDialog,
-    QSplitter,
-    QStackedWidget,
 )
 
 from .archive_utils import (
@@ -35,20 +30,17 @@ from .file_utils import (
 )
 from .preview_utils import PreviewResult, build_preview
 from .search_utils import SearchResult, search_files
-from .ui.action_bar import ActionBar
 from .ui.dialogs import ArchivePreviewDialog
 from .ui.folder_picker import FolderPickerDialog
-from .ui.preview_panel import PreviewPanel
 from .ui.icons import IconFactory
-from .ui.navigation_bar import PathBar
-from .ui.search_panel import SearchPanel
-from .ui.tables import FileTable, TableCard, PATH_ROLE
+from .ui.tables import PATH_ROLE
 from .ui.theme import APP_STYLESHEET
+from .ui.window_layout import WindowLayoutBuilder
 from .ui.workers import OperationWorker, SearchWorker
 
 from .controllers.clipboard_manager import ClipboardManager
 from .controllers.navigation_manager import NavigationManager
-from .controllers.action_manager import ActionManager
+from .controllers.action_manager import ActionManager, AppActionCallbacks
 from .controllers.file_operations import FileOperationsController
 
 PID_FILE = Path(__file__).resolve().parent.parent / ".archive_manager.pid"
@@ -82,8 +74,9 @@ class ArchiveManagerApp(QMainWindow):
         self.setStyleSheet(APP_STYLESHEET)
 
         self._setup_controllers()
-        self.app_actions = self._create_actions()
-        self.app_actions["paste"].setEnabled(False)
+        self.app_actions = self.action_manager.create_application_actions(
+            self._action_callbacks()
+        )
         self._build_layout()
         application = QApplication.instance()
         if application is not None:
@@ -133,204 +126,64 @@ class ArchiveManagerApp(QMainWindow):
             return self.file_table.verticalScrollBar().value()
         return 0
 
-    def _create_actions(self) -> dict[str, QAction]:
-        specs: list[tuple[str, str, str, str, Callable[[], None], str | None]] = [
-            (
-                "open",
-                "Открыть",
-                "open",
-                "Открыть папку внутри программы или файл в стандартной программе",
-                self.open_selected,
-                None,
+    def _action_callbacks(self) -> AppActionCallbacks:
+        return AppActionCallbacks(
+            open_selected=self.open_selected,
+            go_back=lambda: self.navigation_manager.go_back(self._get_scroll()),
+            go_forward=lambda: self.navigation_manager.go_forward(self._get_scroll()),
+            go_up=self.navigation_manager.go_up,
+            go_home=self.navigation_manager.go_home,
+            refresh=self.refresh,
+            toggle_search_panel=self.toggle_search_panel,
+            toggle_preview_panel=self.toggle_preview_panel,
+            undo_last_operation=self.undo_last_operation,
+            create_folder=lambda: self.file_operations.create_folder(
+                self.navigation_manager.current_path, self._ask_new_folder_name()
             ),
-            (
-                "back",
-                "Назад",
-                "back",
-                "Вернуться к предыдущей папке (Alt+Left)",
-                lambda: self.navigation_manager.go_back(self._get_scroll()),
-                "Alt+Left",
+            copy_selected=lambda: self.clipboard_manager.copy_items(
+                self.get_selected_paths()
             ),
-            (
-                "forward",
-                "Вперёд",
-                "forward",
-                "Перейти к следующей папке в истории (Alt+Right)",
-                lambda: self.navigation_manager.go_forward(self._get_scroll()),
-                "Alt+Right",
+            cut_selected=lambda: self.clipboard_manager.cut_items(
+                self.get_selected_paths()
             ),
-            (
-                "up",
-                "Вверх",
-                "up",
-                "Перейти на уровень выше (Alt+Up)",
-                self.navigation_manager.go_up,
-                "Alt+Up",
+            paste_clipboard=lambda: self.file_operations.paste_items(
+                self.clipboard_manager.paths,
+                self.clipboard_manager.is_cut,
+                self.navigation_manager.current_path,
             ),
-            (
-                "home",
-                "Домой",
-                "home",
-                "Открыть домашнюю папку (Alt+Home)",
-                self.navigation_manager.go_home,
-                "Alt+Home",
-            ),
-            (
-                "refresh",
-                "Обновить",
-                "refresh",
-                "Перезагрузить список файлов (F5)",
-                self.refresh,
-                "F5",
-            ),
-            (
-                "search",
-                "Поиск",
-                "search",
-                "Показать или скрыть панель поиска файлов (Ctrl+F)",
-                self.toggle_search_panel,
-                "Ctrl+F",
-            ),
-            (
-                "toggle_preview_panel",
-                "Скрыть превью",
-                "preview",
-                "Показать или скрыть панель предпросмотра",
-                self.toggle_preview_panel,
-                None,
-            ),
-            (
-                "undo",
-                "Отменить",
-                "undo",
-                "Отменить последнее файловое действие (Ctrl+Z)",
-                self.undo_last_operation,
-                "Ctrl+Z",
-            ),
-            (
-                "new_folder",
-                "Новая папка",
-                "new-folder",
-                "Создать новую папку в текущем каталоге",
-                lambda: self.file_operations.create_folder(
-                    self.navigation_manager.current_path, self._ask_new_folder_name()
-                ),
-                None,
-            ),
-            (
-                "copy",
-                "Копировать",
-                "copy",
-                "Скопировать выбранные объекты в буфер",
-                lambda: self.clipboard_manager.copy_items(self.get_selected_paths()),
-                "Ctrl+C",
-            ),
-            (
-                "cut",
-                "Вырезать",
-                "cut",
-                "Вырезать выбранные объекты в буфер",
-                lambda: self.clipboard_manager.cut_items(self.get_selected_paths()),
-                "Ctrl+X",
-            ),
-            (
-                "paste",
-                "Вставить",
-                "paste",
-                "Вставить объекты из буфера",
-                lambda: self.file_operations.paste_items(
-                    self.clipboard_manager.paths,
-                    self.clipboard_manager.is_cut,
-                    self.navigation_manager.current_path,
-                ),
-                "Ctrl+V",
-            ),
-            (
-                "delete",
-                "Удалить",
-                "delete",
-                "Удалить выбранные объекты в корзину (Delete в таблице)",
-                self.delete_selected,
-                None,
-            ),
-            (
-                "rename",
-                "Переименовать",
-                "rename",
-                "Переименовать выбранный объект (F2 в таблице)",
-                self.rename_selected,
-                None,
-            ),
-            (
-                "zip",
-                "Создать ZIP",
-                "zip",
-                "Создать ZIP-архив из выбранных объектов",
-                self.create_zip_from_selection,
-                None,
-            ),
-            (
-                "extract",
-                "Распаковать",
-                "extract",
-                "Распаковать выбранный архив",
-                self.extract_selected_archive,
-                None,
-            ),
-            (
-                "preview",
-                "Содержимое",
-                "preview",
-                "Показать содержимое выбранного архива",
-                self.show_archive_contents,
-                None,
-            ),
-            (
-                "size",
-                "Размер папки",
-                "size",
-                "Посчитать размер выбранной папки",
-                self.calculate_selected_size,
-                None,
-            ),
-            (
-                "system_open",
-                "Открыть в системе",
-                "open",
-                "Открыть файл через системное приложение",
-                self.open_in_system_selected,
-                None,
-            ),
-        ]
-        actions = self.action_manager.setup_actions(specs)
-        preview_action = actions["toggle_preview_panel"]
-        preview_action.setCheckable(True)
-        preview_action.setChecked(True)
-        return actions
+            delete_selected=self.delete_selected,
+            rename_selected=self.rename_selected,
+            create_zip_from_selection=self.create_zip_from_selection,
+            extract_selected_archive=self.extract_selected_archive,
+            show_archive_contents=self.show_archive_contents,
+            calculate_selected_size=self.calculate_selected_size,
+            open_in_system_selected=self.open_in_system_selected,
+        )
 
     def _ask_new_folder_name(self) -> str:
         name, ok = QInputDialog.getText(self, "Новая папка", "Введите имя папки:")
         return name if ok else ""
 
     def _build_layout(self) -> None:
-        central = QWidget(self)
-        layout = QVBoxLayout(central)
-        layout.setContentsMargins(16, 14, 16, 10)
-        layout.setSpacing(12)
+        widgets = WindowLayoutBuilder(self, self.app_actions, self.icons).build()
+        self.action_bar = widgets.action_bar
+        self.path_bar = widgets.path_bar
+        self.file_table = widgets.file_table
+        self.file_table_card = widgets.file_table_card
+        self.preview_panel = widgets.preview_panel
+        self.content_splitter = widgets.content_splitter
+        self.search_panel = widgets.search_panel
+        self.main_stack = widgets.main_stack
+        self.status_label = widgets.status_label
+        self._bind_ui_signals()
 
-        self.action_bar = ActionBar(self.app_actions, self.icons, central)
-        layout.addWidget(self.action_bar)
-
-        self.path_bar = PathBar(self.icons, central)
-
+    def _bind_ui_signals(self) -> None:
         def on_navigate_requested(path_str: str) -> None:
             self.load_directory(Path(path_str))
 
         self.path_bar.navigate_requested.connect(on_navigate_requested)
         self.path_bar.browse_requested.connect(self.choose_directory)
-        layout.addWidget(self.path_bar)
 
-        self.file_table = FileTable(self.icons, central)
         self.file_table.open_requested.connect(self.open_selected)
         self.file_table.delete_requested.connect(self.delete_selected)
         self.file_table.rename_requested.connect(self.rename_selected)
@@ -340,38 +193,14 @@ class ArchiveManagerApp(QMainWindow):
         self.file_table.selection_changed.connect(self.on_file_selection_changed)
         self.file_table.context_menu_requested.connect(self.show_file_context_menu)
         self.file_table.size_requested.connect(self.calculate_folder_size_from_button)
-        self.file_table_card = TableCard(self.file_table, central)
-        self.preview_panel = PreviewPanel(central)
+
         self.preview_panel.open_requested.connect(self.open_in_system_selected)
 
-        self.content_splitter = QSplitter(Qt.Orientation.Horizontal, central)
-        self.content_splitter.setObjectName("ContentSplitter")
-        self.content_splitter.setHandleWidth(8)
-        self.content_splitter.setChildrenCollapsible(False)
-        self.content_splitter.addWidget(self.file_table_card)
-        self.content_splitter.addWidget(self.preview_panel)
-        self.content_splitter.setStretchFactor(0, 1)
-        self.content_splitter.setStretchFactor(1, 0)
-        self.content_splitter.setSizes([920, 340])
-
-        self.search_panel = SearchPanel(self.icons, central)
         self.search_panel.start_requested.connect(self.start_search)
         self.search_panel.stop_requested.connect(self.stop_search)
         self.search_panel.reset_requested.connect(self.reset_search_panel)
         self.search_panel.close_requested.connect(self.hide_search_panel)
         self.search_panel.open_result_requested.connect(self.open_search_result)
-
-        self.main_stack = QStackedWidget(central)
-        self.main_stack.addWidget(self.content_splitter)
-        self.main_stack.addWidget(self.search_panel)
-
-        layout.addWidget(self.main_stack, 1)
-
-        self.setCentralWidget(central)
-
-        self.status_label = QLabel(self)
-        self.status_label.setStyleSheet("color: #4b5563; font-size: 13px;")
-        self.statusBar().addWidget(self.status_label)
 
     def _count_paths(self, paths: list[Path]) -> tuple[int, int, int]:
         files = 0
@@ -565,15 +394,12 @@ class ArchiveManagerApp(QMainWindow):
                     return
 
                 entries, signature = result
-                if add_history and path != self.navigation_manager.current_path:
-                    current_scroll = self.file_table.verticalScrollBar().value()
-                    self.navigation_manager.history.append(
-                        (self.navigation_manager.current_path, current_scroll)
-                    )
-                    if clear_forward:
-                        self.navigation_manager.forward_history.clear()
-
-                self.navigation_manager.current_path = path
+                self.navigation_manager.commit_navigation(
+                    target_path=path,
+                    current_scroll=self.file_table.verticalScrollBar().value(),
+                    add_history=add_history,
+                    clear_forward=clear_forward,
+                )
                 self._last_directory_signature = signature
                 self.path_bar.set_path(str(path))
                 self.file_table.set_entries(entries)

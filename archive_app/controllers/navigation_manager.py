@@ -29,6 +29,21 @@ class NavigationManager(QObject):
     def current_path(self, path: Path) -> None:
         self._current_path = path
 
+    def commit_navigation(
+        self,
+        target_path: Path,
+        current_scroll: int = 0,
+        add_history: bool = True,
+        clear_forward: bool = True,
+    ) -> None:
+        target_path = Path(target_path)
+        if add_history and target_path != self._current_path:
+            self.history.append((self._current_path, current_scroll))
+            if clear_forward:
+                self.forward_history.clear()
+        self._current_path = target_path
+        self._emit_history_changed()
+
     def push_history(
         self, path: Path, current_scroll: int, clear_forward: bool = True
     ) -> None:
