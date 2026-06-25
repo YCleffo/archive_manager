@@ -15,6 +15,7 @@ from PySide6.QtCore import (
     QSize,
     Qt,
     Signal,
+    QFileInfo,
 )
 from PySide6.QtGui import (
     QBrush,
@@ -39,11 +40,15 @@ from PySide6.QtWidgets import (
     QProxyStyle,
     QStyleOptionHeader,
     QStyleOption,
+    QFileIconProvider,
 )
 
 from ..file_utils import FileEntry, format_modified, format_size
 from ..search_utils import SearchResult
 from .icons import IconFactory
+
+_icon_provider = QFileIconProvider()
+
 
 SORT_ROLE = Qt.ItemDataRole.UserRole
 PATH_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -438,7 +443,7 @@ class FileTable(QTableWidget):
         self.insertRow(row)
 
         name_item = SortableTableWidgetItem(entry.name)
-        name_item.setIcon(self.icons.icon("folder" if entry.is_dir else "file"))
+        name_item.setIcon(_icon_provider.icon(QFileInfo(str(entry.path))))
         name_item.setTextAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
@@ -586,7 +591,7 @@ class SearchResultsTable(QTableWidget):
         self.insertRow(row)
 
         path_item = SortableTableWidgetItem(str(result.path))
-        path_item.setIcon(self.icons.icon("folder" if result.path.is_dir() else "file"))
+        path_item.setIcon(_icon_provider.icon(QFileInfo(str(result.path))))
         path_item.setTextAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )

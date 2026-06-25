@@ -6,3 +6,5 @@ pillow-heif>=0.16.0
 olefile>=0.47
 defusedxml>=0.7.1
 pywin32>=306; platform_system=="Windows"
+pymupdf>=1.24
+mutagen>=1.47.0

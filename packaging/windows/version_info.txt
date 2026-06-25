@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 5, 78, 0),
-    prodvers=(1, 5, 78, 0),
+    filevers=(1, 5, 82, 0),
+    prodvers=(1, 5, 82, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -16,11 +16,11 @@ VSVersionInfo(
         [
           StringStruct('CompanyName', 'Yuran Course Project'),
           StringStruct('FileDescription', 'ArchiveManager - file manager and archiver'),
-          StringStruct('FileVersion', '1.5.78.0'),
+          StringStruct('FileVersion', '1.5.82.0'),
           StringStruct('InternalName', 'ArchiveManager'),
           StringStruct('OriginalFilename', 'ArchiveManager.exe'),
           StringStruct('ProductName', 'ArchiveManager'),
-          StringStruct('ProductVersion', '1.5.78.0')
+          StringStruct('ProductVersion', '1.5.82.0')
         ]
       )
     ]),

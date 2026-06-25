@@ -6,6 +6,8 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from PySide6.QtWidgets import QFileIconProvider
+from PySide6.QtCore import QFileInfo
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
@@ -49,6 +51,35 @@ VIDEO_EXTENSIONS = {
     ".mpg",
     ".3gp",
     ".flv",
+}
+
+DOCUMENT_EXTENSIONS = {
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".rtf",
+    ".odt",
+    ".ods",
+    ".odp",
+    ".djvu",
+    ".epub",
+    ".fb2",
+}
+
+AUDIO_EXTENSIONS = {
+    ".mp3",
+    ".flac",
+    ".m4a",
+    ".wav",
+    ".ogg",
+    ".aac",
+    ".wma",
+    ".alac",
+    ".aiff",
 }
 
 
@@ -98,6 +129,12 @@ def _cached_build_preview(
 
     if suffix in VIDEO_EXTENSIONS:
         return _build_video_preview(path, max_size)
+
+    if suffix in DOCUMENT_EXTENSIONS:
+        return _build_document_preview(path, max_size)
+
+    if suffix in AUDIO_EXTENSIONS:
+        return _build_audio_preview(path, max_size)
 
     mime, _ = mimetypes.guess_type(str(path))
     return _build_info_preview(path, mime or "Файл")
@@ -264,6 +301,124 @@ def _build_info_preview(path: Path, kind: str) -> PreviewResult:
     except OSError as exc:
         details = f"{kind}\nПуть: {path}\nОшибка доступа: {exc}"
     return PreviewResult(path=path, title=path.name, details=details)
+
+
+def _build_document_preview(path: Path, max_size: QSize) -> PreviewResult:
+    stat = path.stat()
+    image = None
+    
+    if path.suffix.lower() == ".pdf":
+        try:
+            import fitz  # type: ignore
+
+            doc = fitz.open(str(path))  # type: ignore
+            if doc.page_count > 0:  # type: ignore
+                page = doc.load_page(0)  # type: ignore
+                zoom = 2.0
+                mat = fitz.Matrix(zoom, zoom)  # type: ignore
+                pix = page.get_pixmap(matrix=mat)  # type: ignore
+                image = QImage(pix.samples, pix.width, pix.height, pix.stride, QImage.Format.Format_RGB888)  # type: ignore
+                # Need to copy since PyMuPDF reuses memory
+                image = image.copy()
+            doc.close()
+        except Exception:
+            pass
+            
+    if image is None:
+        provider = QFileIconProvider()
+        icon = provider.icon(QFileInfo(str(path)))
+        if not icon.isNull():
+            image = icon.pixmap(256, 256).toImage()
+
+    if image and (
+        image.size().width() > max_size.width()
+        or image.size().height() > max_size.height()
+    ):
+        image = image.scaled(
+            max_size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+
+    extra_text = "Превью: системная иконка файла." if image else None
+    if path.suffix.lower() == ".pdf" and image:
+        extra_text = "Превью: первая страница PDF."
+
+    details = _format_file_details(
+        path,
+        "Документ",
+        stat.st_size,
+        extra=extra_text,
+    )
+
+    return PreviewResult(
+        path=path,
+        title=path.name,
+        details=details,
+        image=image,
+        error="Превью недоступно." if not image else None,
+    )
+
+
+def _build_audio_preview(path: Path, max_size: QSize) -> PreviewResult:
+    stat = path.stat()
+    image = None
+    
+    try:
+        import mutagen  # type: ignore
+        f = mutagen.File(str(path))  # type: ignore
+        cover_data = None
+        
+        if f is not None:
+            # Check APIC frames for MP3 (ID3v2)
+            if hasattr(f, 'tags') and f.tags is not None:  # type: ignore
+                for key in f.tags.keys():  # type: ignore
+                    if key.startswith('APIC'):
+                        cover_data = f.tags[key].data  # type: ignore
+                        break
+                
+                # Check FLAC / OGG
+                if cover_data is None and hasattr(f.tags, 'pictures'):  # type: ignore
+                    if f.tags.pictures:  # type: ignore
+                        cover_data = f.tags.pictures[0].data  # type: ignore
+                        
+                # Check MP4 / M4A
+                if cover_data is None and 'covr' in f.tags:  # type: ignore
+                    covrs = f.tags['covr']  # type: ignore
+                    if covrs:
+                        cover_data = bytes(covrs[0])
+        
+        if cover_data:
+            image = QImage.fromData(cover_data)
+            
+    except Exception:
+        pass
+        
+    if image and (
+        image.size().width() > max_size.width()
+        or image.size().height() > max_size.height()
+    ):
+        image = image.scaled(
+            max_size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+
+    mime, _ = mimetypes.guess_type(str(path))
+    details = _format_file_details(
+        path,
+        mime or "Аудиофайл",
+        stat.st_size,
+        extra="Превью: обложка альбома." if image else None,
+    )
+
+    return PreviewResult(
+        path=path,
+        title=path.name,
+        details=details,
+        image=image,
+        error="Миниатюра недоступна (нет обложки)." if not image else None,
+    )
 
 
 def _extract_video_frame(
