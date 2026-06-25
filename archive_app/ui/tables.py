@@ -300,17 +300,19 @@ class FileTable(QTableWidget):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if watched == self.viewport():
-            if event.type() == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
-                row = self.rowAt(int(event.position().y()))
-                self._set_hovered_row(row)
-            elif event.type() == QEvent.Type.HoverMove:
-                pos = getattr(event, "position", None)
-                if callable(pos):
-                    point = pos()
-                    if isinstance(point, QPointF):
-                        self._set_hovered_row(self.rowAt(int(point.y())))
+            if event.type() in (QEvent.Type.MouseMove, QEvent.Type.HoverMove):
+                if hasattr(event, "position"):
+                    y = int(event.position().y())
+                    self._set_hovered_row(self.rowAt(y))
+                elif hasattr(event, "pos"):
+                    y = int(event.pos().y())
+                    self._set_hovered_row(self.rowAt(y))
             elif event.type() == QEvent.Type.Leave:
                 self._set_hovered_row(-1)
+        elif event.type() == QEvent.Type.Enter and hasattr(watched, "property"):
+            row = watched.property("rowIndex")
+            if isinstance(row, int):
+                self._set_hovered_row(row)
         return super().eventFilter(watched, event)
 
     def _on_cell_entered(self, row: int, _column: int) -> None:
@@ -443,15 +445,13 @@ class SearchResultsTable(QTableWidget):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if watched == self.viewport():
-            if event.type() == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
-                row = self.rowAt(int(event.position().y()))
-                self._set_hovered_row(row)
-            elif event.type() == QEvent.Type.HoverMove:
-                pos = getattr(event, "position", None)
-                if callable(pos):
-                    point = pos()
-                    if isinstance(point, QPointF):
-                        self._set_hovered_row(self.rowAt(int(point.y())))
+            if event.type() in (QEvent.Type.MouseMove, QEvent.Type.HoverMove):
+                if hasattr(event, "position"):
+                    y = int(event.position().y())
+                    self._set_hovered_row(self.rowAt(y))
+                elif hasattr(event, "pos"):
+                    y = int(event.pos().y())
+                    self._set_hovered_row(self.rowAt(y))
             elif event.type() == QEvent.Type.Leave:
                 self._set_hovered_row(-1)
         return super().eventFilter(watched, event)

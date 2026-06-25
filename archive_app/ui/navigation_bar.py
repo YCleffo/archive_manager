@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from __future__ import annotations
+
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
+    QToolButton,
     QWidget,
 )
 
@@ -35,25 +37,31 @@ class PathBar(QFrame):
         self.path_edit.returnPressed.connect(self._emit_navigate)
         layout.addWidget(self.path_edit, 1)
 
-        go_button = QPushButton("Перейти", self)
+        go_button = QToolButton(self)
+        go_button.setText("Перейти")
         go_button.setMinimumHeight(32)
         go_button.setIcon(icons.icon("open"))
+        go_button.setIconSize(QSize(18, 18))
+        go_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         go_button.clicked.connect(self._emit_navigate)
         make_interactive(go_button, "Открыть папку из строки пути")
 
-        browse_button = QPushButton("Обзор", self)
+        browse_button = QToolButton(self)
+        browse_button.setText("Обзор")
         browse_button.setMinimumHeight(32)
         browse_button.setIcon(icons.icon("folder"))
+        browse_button.setIconSize(QSize(18, 18))
+        browse_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         browse_button.clicked.connect(self.browse_requested.emit)
         make_interactive(browse_button, "Выбрать папку через системный диалог")
 
         buttons_wrap = QWidget(self)
         buttons_layout = QHBoxLayout(buttons_wrap)
-        buttons_layout.setContentsMargins(0, 4, 0, 0)
+        buttons_layout.setContentsMargins(0, 0, 0, 0)
         buttons_layout.setSpacing(10)
         buttons_layout.addWidget(go_button)
         buttons_layout.addWidget(browse_button)
-        layout.addWidget(buttons_wrap, alignment=Qt.AlignmentFlag.AlignBottom)
+        layout.addWidget(buttons_wrap, alignment=Qt.AlignmentFlag.AlignVCenter)
 
     def set_path(self, path: str) -> None:
         self.path_edit.setText(path)

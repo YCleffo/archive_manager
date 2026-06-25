@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -43,16 +43,22 @@ class SearchPanel(QFrame):
         header.addWidget(title)
         header.addStretch(1)
 
-        reset_button = QPushButton("Сброс", self)
+        reset_button = QToolButton(self)
+        reset_button.setText("Сброс")
         reset_button.setMinimumHeight(32)
         reset_button.setIcon(icons.icon("reset"))
+        reset_button.setIconSize(QSize(18, 18))
+        reset_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         reset_button.clicked.connect(self.reset_requested.emit)
         make_interactive(reset_button, "Очистить запрос, фильтры и результаты поиска")
         header.addWidget(reset_button)
 
-        close_button = QPushButton("Закрыть", self)
+        close_button = QToolButton(self)
+        close_button.setText("Закрыть")
         close_button.setMinimumHeight(32)
         close_button.setIcon(icons.icon("close"))
+        close_button.setIconSize(QSize(18, 18))
+        close_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         close_button.clicked.connect(self.close_requested.emit)
         make_interactive(close_button, "Скрыть панель поиска")
         header.addWidget(close_button)
@@ -80,16 +86,22 @@ class SearchPanel(QFrame):
         self.content_checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
         controls.addWidget(self.content_checkbox)
 
-        find_button = QPushButton("Найти", self)
+        find_button = QToolButton(self)
+        find_button.setText("Найти")
         find_button.setMinimumHeight(32)
         find_button.setIcon(icons.icon("search"))
+        find_button.setIconSize(QSize(18, 18))
+        find_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         find_button.clicked.connect(self.start_requested.emit)
         make_interactive(find_button, "Запустить поиск")
         controls.addWidget(find_button)
 
-        stop_button = QPushButton("Стоп", self)
+        stop_button = QToolButton(self)
+        stop_button.setText("Стоп")
         stop_button.setMinimumHeight(32)
         stop_button.setIcon(icons.icon("stop"))
+        stop_button.setIconSize(QSize(18, 18))
+        stop_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         stop_button.clicked.connect(self.stop_requested.emit)
         make_interactive(stop_button, "Остановить текущий поиск")
         controls.addWidget(stop_button)
