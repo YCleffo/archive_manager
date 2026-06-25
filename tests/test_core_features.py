@@ -18,6 +18,7 @@ from archive_app.file_utils import (
     format_size,
     list_directory,
     rename_item,
+    delete_items,
 )
 from archive_app.search_utils import parse_extensions, search_files
 
@@ -160,3 +161,19 @@ def test_format_size_uses_readable_units() -> None:
     assert format_size(0) == "0 Б"
     assert format_size(1024) == "1.0 КБ"
     assert format_size(1024 * 1024) == "1.0 МБ"
+
+
+def test_delete_items_uses_send2trash(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "delete_me.txt"
+    target.write_text("safe delete", encoding="utf-8")
+    calls: list[str] = []
+
+    def fake_send2trash(path: str) -> None:
+        calls.append(path)
+
+    monkeypatch.setattr("archive_app.file_utils.send2trash", fake_send2trash)
+
+    delete_items([target])
+
+    assert calls == [str(target)]
+    assert target.exists()

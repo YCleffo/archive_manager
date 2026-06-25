@@ -47,6 +47,8 @@ def create_zip_archive(
         raise FileNotFoundError("Не найдены: " + ", ".join(missing))
 
     for source in paths:
+        if source == output_zip:
+            raise ValueError("Нельзя использовать выходной ZIP как исходный файл")
         if source.is_dir() and _is_same_or_inside(output_zip, source):
             raise ValueError("Нельзя сохранять архив внутрь архивируемой папки")
 
@@ -60,7 +62,7 @@ def create_zip_archive(
             if source.is_dir():
                 has_any = False
                 for item in source.rglob("*"):
-                    if _is_same_or_inside(item, output_zip):
+                    if item.resolve() == output_zip or _is_same_or_inside(item, output_zip):
                         continue
                     has_any = True
                     arcname = item.relative_to(common_parent)

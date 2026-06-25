@@ -168,3 +168,11 @@ def test_self_move(temp_workspace: Path):
         ValueError, match="Нельзя скопировать или переместить папку внутрь самой себя"
     ):
         move_items([folder], inner)
+
+
+def test_create_zip_rejects_output_file_as_source(temp_workspace: Path):
+    source = temp_workspace / "archive.zip"
+    source.write_text("not really zip", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Нельзя использовать выходной ZIP"):
+        create_zip_archive(source, [source])

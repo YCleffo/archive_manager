@@ -8,7 +8,7 @@ import threading
 from pathlib import Path
 from typing import Any, Callable
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QRunnable, Qt, QThreadPool
+from PySide6.QtCore import QEvent, QObject, QPoint, QRunnable, Qt, QThreadPool, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QMouseEvent, QColor
 from PySide6.QtWidgets import (
     QApplication,
@@ -50,11 +50,14 @@ from .ui.preview_panel import PreviewPanel
 from .ui.icons import IconFactory
 from .ui.navigation_bar import PathBar
 from .ui.search_panel import SearchPanel
-from .ui.tables import FileTable, TableCard
+from .ui.tables import FileTable, TableCard, PATH_ROLE
 from .ui.theme import APP_STYLESHEET
 from .ui.workers import OperationWorker, SearchWorker
 
 PID_FILE = Path(__file__).resolve().parent.parent / ".archive_manager.pid"
+
+DirectorySignature = tuple[tuple[str, bool, int, int], ...]
+
 
 
 class ArchiveManagerApp(QMainWindow):
@@ -75,6 +78,9 @@ class ArchiveManagerApp(QMainWindow):
         self.search_generation = 0
         self.load_generation = 0
         self.preview_generation = 0
+        self._last_directory_signature: DirectorySignature | None = None
+        self._auto_refresh_enabled = True
+        self._auto_refresh_busy = False
         self.thread_pool = QThreadPool.globalInstance()
         self.workers: list[QRunnable] = []
 
@@ -85,6 +91,11 @@ class ArchiveManagerApp(QMainWindow):
         application = QApplication.instance()
         if application is not None:
             application.installEventFilter(self)
+
+        self._auto_refresh_timer = QTimer(self)
+        self._auto_refresh_timer.setInterval(1000)
+        self._auto_refresh_timer.timeout.connect(self._auto_refresh_current_directory)
+        self._auto_refresh_timer.start()
 
         self.load_directory(self.current_path, add_history=False)
 
@@ -308,6 +319,8 @@ class ArchiveManagerApp(QMainWindow):
 
         self.content_splitter = QSplitter(Qt.Orientation.Horizontal, central)
         self.content_splitter.setObjectName("ContentSplitter")
+        self.content_splitter.setHandleWidth(8)
+        self.content_splitter.setChildrenCollapsible(False)
         self.content_splitter.addWidget(self.file_table_card)
         self.content_splitter.addWidget(self.preview_panel)
         self.content_splitter.setStretchFactor(0, 1)
@@ -523,7 +536,11 @@ class ArchiveManagerApp(QMainWindow):
         event.accept()
 
     def load_directory(
-        self, path: Path, add_history: bool = True, clear_forward: bool = True
+        self,
+        path: Path,
+        add_history: bool = True,
+        clear_forward: bool = True,
+        preserve_view: bool = False,
     ) -> None:
         try:
             path = Path(path).expanduser().resolve()
@@ -532,21 +549,36 @@ class ArchiveManagerApp(QMainWindow):
 
             self.load_generation += 1
             generation = self.load_generation
+            selected_before: set[str] = (
+                self._selected_path_strings() if preserve_view else set()
+            )
+            scroll_before = (
+                self.file_table.verticalScrollBar().value() if preserve_view else 0
+            )
 
-            def task(status: Callable[[str], None]) -> list[FileEntry]:
+            def task(status: Callable[[str], None]) -> tuple[list[FileEntry], DirectorySignature]:
                 status(f"Чтение директории: {path.name}...")
-                return list_directory(path)
+                entries = list_directory(path)
+                return entries, self._signature_from_entries(entries)
 
-            def on_result(entries: list[FileEntry]) -> None:
+            def on_result(result: tuple[list[FileEntry], DirectorySignature]) -> None:
                 if generation != self.load_generation:
                     return
+
+                entries, signature = result
                 if add_history and path != self.current_path:
                     self.history.append(self.current_path)
                     if clear_forward:
                         self.forward_history.clear()
+
                 self.current_path = path
+                self._last_directory_signature = signature
                 self.path_bar.set_path(str(path))
                 self.file_table.set_entries(entries)
+
+                if preserve_view:
+                    self._restore_table_view(selected_before, scroll_before)
+
                 self.update_action_counts()
                 self.update_selection_status()
 
@@ -555,8 +587,82 @@ class ArchiveManagerApp(QMainWindow):
             QMessageBox.critical(self, "Ошибка", f"Не удалось открыть папку:\n{exc}")
             self.set_status("Ошибка открытия папки")
 
+    def _signature_from_entries(self, entries: list[FileEntry]) -> DirectorySignature:
+        signature: list[tuple[str, bool, int, int]] = []
+        for entry in entries:
+            modified_ns = 0
+            try:
+                modified_ns = entry.path.stat(follow_symlinks=False).st_mtime_ns
+            except OSError:
+                if entry.modified is not None:
+                    modified_ns = int(entry.modified.timestamp() * 1_000_000_000)
+            signature.append(
+                (
+                    entry.name,
+                    entry.is_dir,
+                    -1 if entry.size is None else entry.size,
+                    modified_ns,
+                )
+            )
+        return tuple(sorted(signature))
+
+    def _read_current_directory_signature(self) -> DirectorySignature | None:
+        try:
+            return self._signature_from_entries(list_directory(self.current_path))
+        except OSError:
+            return None
+
+    def _selected_path_strings(self) -> set[str]:
+        return {str(path) for path in self.file_table.selected_paths()}
+
+    def _restore_table_view(self, selected_paths: set[str], scroll_value: int) -> None:
+        if selected_paths:
+            self.file_table.setUpdatesEnabled(False)
+            try:
+                for row in range(self.file_table.rowCount()):
+                    item = self.file_table.item(row, 0)
+                    if item is None:
+                        continue
+                    raw_path = item.data(PATH_ROLE)
+                    try:
+                        item_path = str(Path(str(raw_path)).resolve())
+                    except OSError:
+                        item_path = str(raw_path)
+                    if item_path in selected_paths:
+                        self.file_table.selectRow(row)
+            finally:
+                self.file_table.setUpdatesEnabled(True)
+
+        self.file_table.verticalScrollBar().setValue(scroll_value)
+
+    def _auto_refresh_current_directory(self) -> None:
+        if not self._auto_refresh_enabled or self._auto_refresh_busy:
+            return
+        if self.thread_pool.activeThreadCount() > 0:
+            return
+        if not self.current_path.exists() or not self.current_path.is_dir():
+            return
+
+        self._auto_refresh_busy = True
+        try:
+            signature = self._read_current_directory_signature()
+            if signature is None:
+                return
+            if self._last_directory_signature is None:
+                self._last_directory_signature = signature
+                return
+            if signature != self._last_directory_signature:
+                self.load_directory(
+                    self.current_path,
+                    add_history=False,
+                    clear_forward=False,
+                    preserve_view=True,
+                )
+        finally:
+            self._auto_refresh_busy = False
+
     def refresh(self) -> None:
-        self.load_directory(self.current_path, add_history=False)
+        self.load_directory(self.current_path, add_history=False, preserve_view=True)
 
     def choose_directory(self) -> None:
         dialog = FolderPickerDialog(self.current_path, self.icons, self)
@@ -682,7 +788,7 @@ class ArchiveManagerApp(QMainWindow):
         try:
             delete_items(paths)
             self.refresh()
-            self.set_status_with_context(f"Удалено объектов: {len(paths)}")
+            self.set_status_with_context(f"Перемещено в корзину: {len(paths)}")
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка", f"Не удалось удалить:\n{exc}")
 

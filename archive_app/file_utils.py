@@ -67,7 +67,7 @@ def list_directory(path: Path) -> list[FileEntry]:
         if is_hidden_or_system(child):
             continue
         try:
-            stat = child.stat()
+            stat = child.stat(follow_symlinks=False)
             is_dir = child.is_dir()
             kind = (
                 "Папка"

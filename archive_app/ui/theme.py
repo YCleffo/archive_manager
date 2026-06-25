@@ -285,6 +285,26 @@ QListView#PathCompleterPopup::item:selected {
     background: #edf4ff;
     color: #172033;
 }
+
+QSplitter#ContentSplitter {
+    background: transparent;
+}
+
+QSplitter#ContentSplitter::handle {
+    background: transparent;
+    border: 0;
+}
+
+QSplitter#ContentSplitter::handle:hover {
+    background: rgba(110, 151, 199, 0.12);
+    border-radius: 3px;
+}
+
+QSplitter#ContentSplitter::handle:pressed {
+    background: rgba(110, 151, 199, 0.18);
+    border-radius: 3px;
+}
+
 QFrame#PreviewPanel {
     background: #ffffff;
     border: 1px solid #d8e0ea;
