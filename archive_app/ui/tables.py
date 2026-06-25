@@ -62,6 +62,31 @@ class SortArrowStyle(QProxyStyle):
         super().__init__()
         self.icons = icons
 
+    def subElementRect(
+        self,
+        element: QStyle.SubElement,
+        option: QStyleOption,
+        widget: QWidget | None = None,
+    ) -> QRect:
+        if element == QStyle.SubElement.SE_HeaderArrow:
+            if isinstance(option, QStyleOptionHeader):
+                label_rect = super().subElementRect(
+                    QStyle.SubElement.SE_HeaderLabel, option, widget
+                )
+                text_width = option.fontMetrics.horizontalAdvance(option.text)
+
+                arrow_width = 18
+                arrow_height = 18
+
+                x = label_rect.left() + text_width + 12
+                if x + arrow_width > option.rect.right():
+                    x = option.rect.right() - arrow_width
+
+                y = label_rect.center().y() - arrow_height // 2
+                return QRect(x, y, arrow_width, arrow_height)
+
+        return super().subElementRect(element, option, widget)
+
     def drawPrimitive(
         self,
         element: QStyle.PrimitiveElement,
@@ -77,11 +102,8 @@ class SortArrowStyle(QProxyStyle):
                     icon = self.icons.icon("sort-down")
                 else:
                     return
-                center = option.rect.center()
-                size = 18
-                draw_rect = QRect(0, 0, size, size)
-                draw_rect.moveCenter(center)
-                icon.paint(painter, draw_rect, Qt.AlignmentFlag.AlignCenter)
+                # Draw the icon exactly within the option.rect allocated by subElementRect
+                icon.paint(painter, option.rect, Qt.AlignmentFlag.AlignCenter)
             return
         super().drawPrimitive(element, option, painter, widget)
 
@@ -240,10 +262,14 @@ class SizeButtonDelegate(NoFocusDelegate):
         painter.setBrush(BUTTON_HOVER_BG_COLOR if row_hovered else BUTTON_BG_COLOR)
         painter.drawRoundedRect(button_rect, 6, 6)
         painter.setPen(BUTTON_TEXT_COLOR)
-        
+
         calculated_size = index.data(CALCULATED_SIZE_ROLE)
-        button_text = str(calculated_size) if calculated_size else str(index.data(Qt.ItemDataRole.DisplayRole) or "Посчитать")
-        
+        button_text = (
+            str(calculated_size)
+            if calculated_size
+            else str(index.data(Qt.ItemDataRole.DisplayRole) or "Посчитать")
+        )
+
         painter.drawText(
             button_rect,
             Qt.AlignmentFlag.AlignCenter,
