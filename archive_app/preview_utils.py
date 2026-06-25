@@ -7,6 +7,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, cast
 
@@ -81,13 +82,13 @@ def _bundle_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-from functools import lru_cache
-
 @lru_cache(maxsize=16)
-def _cached_build_preview(path_str: str, mtime: float, width: int, height: int) -> PreviewResult:
+def _cached_build_preview(
+    path_str: str, mtime: float, width: int, height: int
+) -> PreviewResult:
     path = Path(path_str)
     max_size = QSize(width, height)
-    
+
     if path.is_dir():
         return _build_info_preview(path, "Папка")
 

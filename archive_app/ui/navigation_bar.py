@@ -95,8 +95,8 @@ class PathBar(QFrame):
 
         go_button = QToolButton(self)
         go_button.setObjectName("PathButton")
-        go_button.setText("Перейти")
-        go_button.setFixedSize(84, 28)
+        go_button.setText("  Перейти")
+        go_button.setFixedSize(94, 28)
         go_button.setIcon(icons.icon("open"))
         go_button.setIconSize(QSize(14, 14))
         go_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -105,8 +105,8 @@ class PathBar(QFrame):
 
         browse_button = QToolButton(self)
         browse_button.setObjectName("PathButton")
-        browse_button.setText("Обзор")
-        browse_button.setFixedSize(78, 28)
+        browse_button.setText("  Обзор")
+        browse_button.setFixedSize(88, 28)
         browse_button.setIcon(icons.icon("folder"))
         browse_button.setIconSize(QSize(14, 14))
         browse_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)

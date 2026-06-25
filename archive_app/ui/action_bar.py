@@ -102,6 +102,7 @@ class ActionBar(QFrame):
         button = QToolButton(self)
         button.setMinimumHeight(32)
         button.setDefaultAction(action)
+        button.setText("  " + action.text())
         button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         button.setIconSize(QSize(18, 18))
         make_interactive(button, action.toolTip())

@@ -12,6 +12,7 @@ from PySide6.QtCore import (
     QModelIndex,
     QPersistentModelIndex,
     QPoint,
+    QSize,
     Qt,
     Signal,
 )
@@ -62,6 +63,22 @@ class SortArrowStyle(QProxyStyle):
         super().__init__()
         self.icons = icons
 
+    def sizeFromContents(
+        self,
+        contentsType: QStyle.ContentsType,
+        option: QStyleOption,
+        size: QSize,
+        widget: QWidget | None = None,
+    ) -> QSize:
+        base_size = super().sizeFromContents(
+            contentsType, option, size, cast(QWidget, widget)
+        )
+        if contentsType == QStyle.ContentsType.CT_HeaderSection:
+            if isinstance(option, QStyleOptionHeader):
+                if option.sortIndicator != QStyleOptionHeader.SortIndicator.None_:
+                    base_size.setWidth(base_size.width() + 18 + 12 + 12)
+        return base_size
+
     def subElementRect(
         self,
         element: QStyle.SubElement,
@@ -71,21 +88,27 @@ class SortArrowStyle(QProxyStyle):
         if element == QStyle.SubElement.SE_HeaderArrow:
             if isinstance(option, QStyleOptionHeader):
                 label_rect = super().subElementRect(
-                    QStyle.SubElement.SE_HeaderLabel, option, widget
+                    QStyle.SubElement.SE_HeaderLabel, option, cast(QWidget, widget)
                 )
                 text_width = option.fontMetrics.horizontalAdvance(option.text)
 
                 arrow_width = 18
                 arrow_height = 18
 
+                # Calculate left padding to apply it to the right as well
+                padding_left = label_rect.left() - option.rect.left()
+                if padding_left < 0:
+                    padding_left = 6
+
                 x = label_rect.left() + text_width + 12
-                if x + arrow_width > option.rect.right():
-                    x = option.rect.right() - arrow_width
+                # Ensure we have the same padding on the right
+                if x + arrow_width > option.rect.right() - padding_left:
+                    x = option.rect.right() - padding_left - arrow_width
 
                 y = label_rect.center().y() - arrow_height // 2
                 return QRect(x, y, arrow_width, arrow_height)
 
-        return super().subElementRect(element, option, widget)
+        return super().subElementRect(element, option, cast(QWidget, widget))
 
     def drawPrimitive(
         self,

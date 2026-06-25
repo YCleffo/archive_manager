@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRunnable, Qt, QThreadPool, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QMouseEvent, QColor
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QMouseEvent, QColor, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QInputDialog,
@@ -461,7 +461,7 @@ class ArchiveManagerApp(QMainWindow):
             self.app_actions["paste"].setToolTip("Вставить объекты из буфера")
             self.app_actions["paste"].setStatusTip("Вставить объекты из буфера")
             self.app_actions["paste"].setEnabled(False)
-            
+
         self.app_actions["back"].setEnabled(bool(self.history))
         self.app_actions["forward"].setEnabled(bool(self.forward_history))
         self.app_actions["up"].setEnabled(self.current_path.parent != self.current_path)
@@ -1196,6 +1196,10 @@ def main() -> None:
         app.installTranslator(translator)
 
     app.setApplicationName("Менеджер архивов")
+
+    icon_path = Path(__file__).parent.parent / "assets" / "app.ico"
+    app.setWindowIcon(QIcon(str(icon_path)))
+
     window = ArchiveManagerApp()
     window.show()
     sys.exit(app.exec())

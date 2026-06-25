@@ -187,11 +187,9 @@ QHeaderView::section {
     border-bottom: 1px solid #d8e0ea;
     color: #273548;
     font-weight: 600;
-    padding: 9px 24px 9px 10px;
+    padding: 9px 36px 9px 10px;
     text-align: left;
 }
-
-
 
 QMenu {
     background: #ffffff;

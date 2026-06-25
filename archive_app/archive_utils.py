@@ -62,7 +62,9 @@ def create_zip_archive(
             if source.is_dir():
                 has_any = False
                 for item in source.rglob("*"):
-                    if item.resolve() == output_zip or _is_same_or_inside(item, output_zip):
+                    if item.resolve() == output_zip or _is_same_or_inside(
+                        item, output_zip
+                    ):
                         continue
                     has_any = True
                     arcname = item.relative_to(common_parent)

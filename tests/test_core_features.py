@@ -163,7 +163,9 @@ def test_format_size_uses_readable_units() -> None:
     assert format_size(1024 * 1024) == "1.0 МБ"
 
 
-def test_delete_items_uses_send2trash(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_delete_items_uses_send2trash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     target = tmp_path / "delete_me.txt"
     target.write_text("safe delete", encoding="utf-8")
     calls: list[str] = []
