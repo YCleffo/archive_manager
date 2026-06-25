@@ -22,12 +22,10 @@ def temp_workspace(tmp_path: Path):
 
 
 def test_validate_archive_name():
-    # Нормальные пути
     assert _validate_archive_name("test.txt") == "test.txt"
     assert _validate_archive_name("folder/test.txt") == "folder/test.txt"
     assert _validate_archive_name("folder\\test.txt") == "folder/test.txt"
 
-    # Запрещённые пути
     with pytest.raises(ValueError, match="Абсолютный путь запрещён"):
         _validate_archive_name("/etc/passwd")
 
@@ -42,7 +40,6 @@ def test_validate_archive_name():
 
 
 def test_path_normalization():
-    # Проверка, что слеши заменяются корректно для кроссплатформенности в архивах
     assert _validate_archive_name("a\\b\\c") == "a/b/c"
     assert _validate_archive_name("a/b/c") == "a/b/c"
 

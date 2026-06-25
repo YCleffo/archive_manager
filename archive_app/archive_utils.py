@@ -222,7 +222,6 @@ def extract_archive(
                 if progress:
                     progress(member.name)
 
-                # Safe individual extract
                 if member.isdir():
                     target.mkdir(parents=True, exist_ok=True)
                 else:

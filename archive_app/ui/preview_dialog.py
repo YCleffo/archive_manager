@@ -41,7 +41,7 @@ TEXT_EXTENSIONS = {
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}
 
-MAX_TEXT_READ_SIZE = 5 * 1024 * 1024  # 5 MB
+MAX_TEXT_READ_SIZE = 5 * 1024 * 1024
 
 
 class PreviewDialog(QDialog):
@@ -115,8 +115,6 @@ class PreviewDialog(QDialog):
         if pixmap.isNull():
             return QLabel("Ошибка загрузки изображения.")
 
-        # Scale down if too large, but allow viewing actual size if smaller than window
-        # For simplicity, let's make it scale to fit by default.
         label.setPixmap(pixmap)
         label.setScaledContents(False)
 

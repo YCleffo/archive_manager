@@ -907,7 +907,6 @@ class ArchiveManagerApp(QMainWindow):
         )
         menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
-        # Custom softer shadow
         from PySide6.QtWidgets import QGraphicsDropShadowEffect
 
         shadow = QGraphicsDropShadowEffect(menu)

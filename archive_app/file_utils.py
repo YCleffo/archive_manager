@@ -23,7 +23,6 @@ def is_hidden_or_system(path: Path) -> bool:
         return True
     try:
         attrs = getattr(path.stat(), "st_file_attributes", 0)
-        # FILE_ATTRIBUTE_HIDDEN = 2, FILE_ATTRIBUTE_SYSTEM = 4
         if attrs & (2 | 4):
             return True
     except OSError:

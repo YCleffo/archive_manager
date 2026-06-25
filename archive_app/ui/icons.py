@@ -85,13 +85,11 @@ class IconFactory:
             painter.drawRoundedRect(r(7, 5, 8, 10), 1.4 * scale, 1.4 * scale)
             painter.drawRoundedRect(r(4.5, 8, 8, 8), 1.4 * scale, 1.4 * scale)
         elif name == "cut":
-            # scissors
             painter.drawEllipse(r(4, 12, 3.5, 3.5))
             painter.drawEllipse(r(4, 4.5, 3.5, 3.5))
             painter.drawLine(p(7.3, 13), p(15, 6))
             painter.drawLine(p(7.3, 7), p(15, 14))
         elif name == "paste":
-            # clipboard
             painter.drawRoundedRect(r(6, 4, 8, 12), 1.2 * scale, 1.2 * scale)
             painter.drawRoundedRect(r(8, 2.5, 4, 3.5), 0.8 * scale, 0.8 * scale)
         elif name == "zip":
