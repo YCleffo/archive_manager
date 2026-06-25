@@ -7,20 +7,26 @@ cd /d "%~dp0"
 
 echo [INFO] Closing previous Archive Manager instances...
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$target=(Resolve-Path '.\main.py').Path; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and ($_.Name -match '^(python|pythonw|py|pyw)\.exe$') -and ($_.CommandLine -like ('*' + $target + '*') -or ($_.CommandLine -like '*archive_manager*' -and $_.CommandLine -like '*main.py*')) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }" >nul 2>&1
+if exist ".archive_manager.pid" (
+    for /f "usebackq delims=" %%P in (".archive_manager.pid") do taskkill /PID %%P /F >nul 2>&1
+    del ".archive_manager.pid" >nul 2>&1
+)
 
 set "PYTHON_CMD="
-set "PYTHON_GUI_CMD="
+set "PYTHON_GUI_EXE="
+set "PYTHON_GUI_ARGS="
 python --version >nul 2>&1
 if not errorlevel 1 (
     set "PYTHON_CMD=python"
-    set "PYTHON_GUI_CMD=pythonw"
+    set "PYTHON_GUI_EXE=pythonw"
 )
 
 if not defined PYTHON_CMD (
     py -3 --version >nul 2>&1
     if not errorlevel 1 (
         set "PYTHON_CMD=py -3"
-        set "PYTHON_GUI_CMD=pyw -3"
+        set "PYTHON_GUI_EXE=pyw"
+        set "PYTHON_GUI_ARGS=-3"
     )
 )
 
@@ -70,7 +76,7 @@ echo [INFO] Launching the main program...
 echo ========================================================
 echo.
 
-start "" %PYTHON_GUI_CMD% "%~dp0main.py"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$argsList=@(); if ($env:PYTHON_GUI_ARGS) { $argsList += $env:PYTHON_GUI_ARGS }; $argsList += (Join-Path (Get-Location) 'main.py'); Start-Process -FilePath $env:PYTHON_GUI_EXE -ArgumentList $argsList -WorkingDirectory (Get-Location)" >nul 2>&1
 if errorlevel 1 (
     color 0c
     echo [ERROR] Failed to start the graphical application.

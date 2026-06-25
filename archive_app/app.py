@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import atexit
 import os
 import shutil
 import sys
@@ -46,6 +47,8 @@ from .ui.search_panel import SearchPanel
 from .ui.tables import FileTable, TableCard
 from .ui.theme import APP_STYLESHEET
 from .ui.workers import OperationWorker, SearchWorker
+
+PID_FILE = Path(__file__).resolve().parent.parent / ".archive_manager.pid"
 
 
 class ArchiveManagerApp(QMainWindow):
@@ -290,6 +293,7 @@ class ArchiveManagerApp(QMainWindow):
         self.stop_search(silent=True)
         self.thread_pool.clear()
         self.thread_pool.waitForDone(1000)
+        _remove_pid_file()
         event.accept()
         os._exit(0)
 
@@ -782,8 +786,24 @@ class ArchiveManagerApp(QMainWindow):
 
 
 def main() -> None:
+    _write_pid_file()
     app = QApplication(sys.argv)
     app.setApplicationName("Менеджер архивов")
     window = ArchiveManagerApp()
     window.show()
     sys.exit(app.exec())
+
+
+def _write_pid_file() -> None:
+    PID_FILE.write_text(str(os.getpid()), encoding="ascii")
+    atexit.register(_remove_pid_file)
+
+
+def _remove_pid_file() -> None:
+    try:
+        if PID_FILE.exists() and PID_FILE.read_text(encoding="ascii").strip() == str(
+            os.getpid()
+        ):
+            PID_FILE.unlink()
+    except OSError:
+        pass

@@ -57,7 +57,10 @@ QToolButton::menu-indicator {
 
 QToolButton#PathButton {
     min-height: 26px;
-    padding: 3px 9px;
+    max-height: 28px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 9pt;
 }
 
 QLineEdit {
