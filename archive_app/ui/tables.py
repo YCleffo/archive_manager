@@ -1,24 +1,25 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 
 from PySide6.QtCore import (
+    QAbstractItemModel,
     QEvent,
+    QRect,
     QModelIndex,
     QPersistentModelIndex,
-    QObject,
     QPoint,
+    QPointF,
     Qt,
     Signal,
 )
-from PySide6.QtGui import QBrush, QColor, QKeyEvent, QMouseEvent, QPainter
+from PySide6.QtGui import QBrush, QColor, QKeyEvent, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
-    QHBoxLayout,
     QHeaderView,
-    QPushButton,
     QStyle,
     QStyleOptionViewItem,
     QStyledItemDelegate,
@@ -31,12 +32,17 @@ from PySide6.QtWidgets import (
 from ..file_utils import FileEntry, format_modified, format_size
 from ..search_utils import SearchResult
 from .icons import IconFactory
-from .theme import make_interactive
 
 SORT_ROLE = Qt.ItemDataRole.UserRole
 PATH_ROLE = Qt.ItemDataRole.UserRole + 1
 HOVER_ROLE = Qt.ItemDataRole.UserRole + 2
+SIZE_BUTTON_ROLE = Qt.ItemDataRole.UserRole + 3
+SIZE_PATH_ROLE = Qt.ItemDataRole.UserRole + 4
 HOVER_ROW_COLOR = QColor("#f4f7fb")
+BUTTON_BG_COLOR = QColor("#ffffff")
+BUTTON_HOVER_BG_COLOR = QColor("#f3f7fb")
+BUTTON_BORDER_COLOR = QColor("#cfd8e3")
+BUTTON_TEXT_COLOR = QColor("#425466")
 
 
 class SortableTableWidgetItem(QTableWidgetItem):
@@ -52,12 +58,11 @@ class SortableTableWidgetItem(QTableWidgetItem):
 
 
 class NoFocusDelegate(QStyledItemDelegate):
-    def paint(
+    def _prepare_option(
         self,
-        painter: QPainter,
         option: QStyleOptionViewItem,
         index: QModelIndex | QPersistentModelIndex,
-    ) -> None:
+    ) -> QStyleOptionViewItem:
         clean_option = QStyleOptionViewItem(option)
         clean_option.state &= ~QStyle.StateFlag.State_HasFocus
         clean_option.state &= ~QStyle.StateFlag.State_MouseOver
@@ -68,7 +73,78 @@ class NoFocusDelegate(QStyledItemDelegate):
             and not clean_option.state & QStyle.StateFlag.State_Selected
         ):
             clean_option.backgroundBrush = QBrush(HOVER_ROW_COLOR)
+        return clean_option
+
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        clean_option = self._prepare_option(option, index)
         super().paint(painter, clean_option, index)
+
+
+class SizeButtonDelegate(NoFocusDelegate):
+    def paint(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        if not bool(index.data(SIZE_BUTTON_ROLE)):
+            super().paint(painter, option, index)
+            return
+
+        clean_option = self._prepare_option(option, index)
+        clean_option.text = ""
+        QStyledItemDelegate.paint(self, painter, clean_option, index)
+
+        button_rect = self._button_rect(clean_option.rect)
+        is_selected = bool(clean_option.state & QStyle.StateFlag.State_Selected)
+        hovered_row = getattr(self.parent(), "hovered_row", -1)
+        row_hovered = index.row() == hovered_row and not is_selected
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setPen(QPen(BUTTON_BORDER_COLOR, 1))
+        painter.setBrush(BUTTON_HOVER_BG_COLOR if row_hovered else BUTTON_BG_COLOR)
+        painter.drawRoundedRect(button_rect, 6, 6)
+        painter.setPen(BUTTON_TEXT_COLOR)
+        painter.drawText(
+            button_rect,
+            Qt.AlignmentFlag.AlignCenter,
+            str(index.data(Qt.ItemDataRole.DisplayRole) or "Посчитать"),
+        )
+        painter.restore()
+
+    def editorEvent(
+        self,
+        event: QEvent,
+        model: QAbstractItemModel,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> bool:
+        if not bool(index.data(SIZE_BUTTON_ROLE)):
+            return super().editorEvent(event, model, option, index)
+        if event.type() == QEvent.Type.MouseButtonRelease and isinstance(
+            event, QMouseEvent
+        ):
+            if self._button_rect(option.rect).contains(event.position().toPoint()):
+                path_raw = index.data(SIZE_PATH_ROLE)
+                if path_raw:
+                    parent_table = cast("FileTable", self.parent())
+                    parent_table.size_requested.emit(Path(str(path_raw)))
+                    return True
+        return super().editorEvent(event, model, option, index)
+
+    @staticmethod
+    def _button_rect(cell_rect: QRect) -> QRect:
+        height = max(26, cell_rect.height() - 10)
+        width = min(88, max(40, cell_rect.width() - 16))
+        x = cell_rect.x() + (cell_rect.width() - width) // 2
+        y = cell_rect.y() + (cell_rect.height() - height) // 2
+        return QRect(x, y, width, height)
 
 
 class TableCard(QFrame):
@@ -97,6 +173,7 @@ class FileTable(QTableWidget):
         self.setObjectName("FileTable")
         self.setHorizontalHeaderLabels(["Имя", "Тип", "Размер", "Изменён"])
         configure_table(self, multi_select=True)
+        self.setItemDelegateForColumn(2, SizeButtonDelegate(self))
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeMode.ResizeToContents
@@ -176,6 +253,7 @@ class FileTable(QTableWidget):
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
         size_item.setData(SORT_ROLE, -1 if entry.size is None else entry.size)
+        size_item.setData(SIZE_BUTTON_ROLE, False)
 
         modified_item = SortableTableWidgetItem(format_modified(entry.modified))
         modified_item.setTextAlignment(
@@ -190,7 +268,12 @@ class FileTable(QTableWidget):
         self.setItem(row, 2, size_item)
         self.setItem(row, 3, modified_item)
         if entry.is_dir:
-            self._set_size_button(row, entry.path)
+            size_item.setText("Посчитать")
+            size_item.setTextAlignment(
+                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
+            )
+            size_item.setData(SIZE_BUTTON_ROLE, True)
+            size_item.setData(SIZE_PATH_ROLE, str(entry.path))
 
     def set_folder_size(self, path: Path, total_size: int) -> None:
         normalized = str(Path(path).resolve())
@@ -200,7 +283,6 @@ class FileTable(QTableWidget):
                 item is not None
                 and str(Path(item.data(PATH_ROLE)).resolve()) == normalized
             ):
-                self.removeCellWidget(row, 2)
                 size_item = self.item(row, 2)
                 if size_item is None:
                     size_item = SortableTableWidgetItem()
@@ -210,49 +292,33 @@ class FileTable(QTableWidget):
                     Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
                 )
                 size_item.setData(SORT_ROLE, total_size)
+                size_item.setData(SIZE_BUTTON_ROLE, False)
+                size_item.setData(SIZE_PATH_ROLE, None)
                 return
-
-    def _set_size_button(self, row: int, path: Path) -> None:
-        wrapper = QWidget(self)
-        wrapper.setObjectName("SizeCell")
-        wrapper.setProperty("rowIndex", row)
-        wrapper.installEventFilter(self)
-        layout = QHBoxLayout(wrapper)
-        layout.setContentsMargins(4, 3, 4, 3)
-        layout.setSpacing(0)
-
-        button = QPushButton("Посчитать", wrapper)
-        button.setObjectName("SizeButton")
-        button.setFixedHeight(26)
-        button.setMaximumWidth(96)
-        button.setProperty("rowIndex", row)
-        button.installEventFilter(self)
-        make_interactive(button, "Посчитать размер этой папки")
-
-        def on_clicked(_checked: bool = False, requested_path: Path = path) -> None:
-            self.size_requested.emit(requested_path)
-
-        button.clicked.connect(on_clicked)
-        layout.addWidget(button, alignment=Qt.AlignmentFlag.AlignCenter)
-        self.setCellWidget(row, 2, wrapper)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         index = self.indexAt(event.position().toPoint())
         self._set_hovered_row(index.row() if index.isValid() else -1)
         super().mouseMoveEvent(event)
 
+    def viewportEvent(self, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
+            index = self.indexAt(event.position().toPoint())
+            self._set_hovered_row(index.row() if index.isValid() else -1)
+        elif event.type() == QEvent.Type.HoverMove:
+            pos = getattr(event, "position", None)
+            if callable(pos):
+                point = pos()
+                if isinstance(point, QPointF):
+                    index = self.indexAt(point.toPoint())
+                    self._set_hovered_row(index.row() if index.isValid() else -1)
+        elif event.type() == QEvent.Type.Leave:
+            self._set_hovered_row(-1)
+        return super().viewportEvent(event)
+
     def leaveEvent(self, event: QEvent) -> None:
         self._set_hovered_row(-1)
         super().leaveEvent(event)
-
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if event.type() == QEvent.Type.Enter and hasattr(watched, "property"):
-            row = watched.property("rowIndex")
-            if isinstance(row, int):
-                self._set_hovered_row(row)
-        elif event.type() == QEvent.Type.Leave and hasattr(watched, "property"):
-            self._set_hovered_row(-1)
-        return super().eventFilter(watched, event)
 
     def _on_cell_entered(self, row: int, _column: int) -> None:
         self._set_hovered_row(row)
@@ -274,11 +340,6 @@ class FileTable(QTableWidget):
             item = self.item(row, column)
             if item is not None:
                 item.setData(HOVER_ROLE, active)
-        widget = self.cellWidget(row, 2)
-        if widget is not None:  # type: ignore[unnecessary-comparison]
-            widget.setProperty("rowHover", active)
-            widget.style().unpolish(widget)
-            widget.style().polish(widget)
         top_left = self.model().index(row, 0)
         bottom_right = self.model().index(row, self.columnCount() - 1)
         self.viewport().update(self.visualRect(top_left).united(self.visualRect(bottom_right)))
@@ -389,6 +450,21 @@ class SearchResultsTable(QTableWidget):
         self._set_hovered_row(index.row() if index.isValid() else -1)
         super().mouseMoveEvent(event)
 
+    def viewportEvent(self, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
+            index = self.indexAt(event.position().toPoint())
+            self._set_hovered_row(index.row() if index.isValid() else -1)
+        elif event.type() == QEvent.Type.HoverMove:
+            pos = getattr(event, "position", None)
+            if callable(pos):
+                point = pos()
+                if isinstance(point, QPointF):
+                    index = self.indexAt(point.toPoint())
+                    self._set_hovered_row(index.row() if index.isValid() else -1)
+        elif event.type() == QEvent.Type.Leave:
+            self._set_hovered_row(-1)
+        return super().viewportEvent(event)
+
     def leaveEvent(self, event: QEvent) -> None:
         self._set_hovered_row(-1)
         super().leaveEvent(event)
@@ -444,6 +520,7 @@ def configure_table(table: QTableWidget, multi_select: bool) -> None:
     table.setItemDelegate(NoFocusDelegate(table))
     table.setMouseTracking(True)
     table.viewport().setMouseTracking(True)
+    table.viewport().setAttribute(Qt.WidgetAttribute.WA_Hover, True)
 
 
 def set_header_alignments(
