@@ -323,7 +323,7 @@ def _extract_video_frame(
             last_error = message or last_error
             continue
 
-        image = QImage.fromData(completed.stdout, b"PNG")
+        image = QImage.fromData(completed.stdout)
         if image.isNull():
             last_error = (
                 "ffmpeg вернул кадр, но приложение не смогло прочитать картинку."
