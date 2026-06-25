@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 
 from PySide6.QtCore import (
@@ -12,7 +12,6 @@ from PySide6.QtCore import (
     QModelIndex,
     QPersistentModelIndex,
     QPoint,
-    QPointF,
     Qt,
     Signal,
 )
@@ -59,22 +58,62 @@ class SortableTableWidgetItem(QTableWidgetItem):
 
 
 class NoFocusDelegate(QStyledItemDelegate):
-    def _prepare_option(
+    def _is_hovered(
         self,
-        option: QStyleOptionViewItem,
         index: QModelIndex | QPersistentModelIndex,
-    ) -> QStyleOptionViewItem:
+    ) -> bool:
+        parent_table = self.parent()
+        return index.row() == getattr(parent_table, "hovered_row", -1)
+
+    def _prepare_option(self, option: QStyleOptionViewItem) -> QStyleOptionViewItem:
         clean_option = QStyleOptionViewItem(option)
         clean_option.state &= ~QStyle.StateFlag.State_HasFocus
         clean_option.state &= ~QStyle.StateFlag.State_MouseOver
-        parent_table = self.parent()
-        hovered_row = getattr(parent_table, "hovered_row", -1)
-        if (
-            index.row() == hovered_row
-            and not clean_option.state & QStyle.StateFlag.State_Selected
-        ):
-            clean_option.backgroundBrush = QBrush(HOVER_ROW_COLOR)
         return clean_option
+
+    def _paint_hover_background(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> bool:
+        is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        if self._is_hovered(index) and not is_selected:
+            painter.fillRect(option.rect, HOVER_ROW_COLOR)
+            return True
+        return False
+
+    def _paint_hover_cell(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> bool:
+        if not self._paint_hover_background(painter, option, index):
+            return False
+
+        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        icon = index.data(Qt.ItemDataRole.DecorationRole)
+        alignment = index.data(Qt.ItemDataRole.TextAlignmentRole)
+        if alignment is None:
+            alignment = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+
+        text_rect = option.rect.adjusted(10, 0, -10, 0)
+        if icon is not None and hasattr(icon, "paint"):
+            icon_rect = QRect(
+                text_rect.left(),
+                text_rect.top() + (text_rect.height() - 18) // 2,
+                18,
+                18,
+            )
+            icon.paint(painter, icon_rect)
+            text_rect.setLeft(icon_rect.right() + 10)
+
+        painter.save()
+        painter.setPen(QColor("#152033"))
+        painter.drawText(text_rect, alignment, text)
+        painter.restore()
+        return True
 
     def paint(
         self,
@@ -82,7 +121,9 @@ class NoFocusDelegate(QStyledItemDelegate):
         option: QStyleOptionViewItem,
         index: QModelIndex | QPersistentModelIndex,
     ) -> None:
-        clean_option = self._prepare_option(option, index)
+        clean_option = self._prepare_option(option)
+        if self._paint_hover_cell(painter, clean_option, index):
+            return
         super().paint(painter, clean_option, index)
 
 
@@ -97,14 +138,14 @@ class SizeButtonDelegate(NoFocusDelegate):
             super().paint(painter, option, index)
             return
 
-        clean_option = self._prepare_option(option, index)
+        clean_option = self._prepare_option(option)
         clean_option.text = ""
         QStyledItemDelegate.paint(self, painter, clean_option, index)
+        self._paint_hover_background(painter, clean_option, index)
 
         button_rect = self._button_rect(clean_option.rect)
         is_selected = bool(clean_option.state & QStyle.StateFlag.State_Selected)
-        hovered_row = getattr(self.parent(), "hovered_row", -1)
-        row_hovered = index.row() == hovered_row and not is_selected
+        row_hovered = self._is_hovered(index) and not is_selected
 
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -240,14 +281,18 @@ class FileTable(QTableWidget):
 
         name_item = SortableTableWidgetItem(entry.name)
         name_item.setIcon(self.icons.icon("folder" if entry.is_dir else "file"))
-        name_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        name_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         name_item.setData(
             SORT_ROLE, f"{0 if entry.is_dir else 1}|{entry.name.casefold()}"
         )
         name_item.setData(PATH_ROLE, str(entry.path))
 
         kind_item = SortableTableWidgetItem(entry.kind)
-        kind_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        kind_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         kind_item.setData(SORT_ROLE, entry.kind.casefold())
 
         size_item = SortableTableWidgetItem(format_size(entry.size))
@@ -301,11 +346,11 @@ class FileTable(QTableWidget):
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if watched == self.viewport():
             if event.type() in (QEvent.Type.MouseMove, QEvent.Type.HoverMove):
-                if hasattr(event, "position"):
-                    y = int(event.position().y())
-                    self._set_hovered_row(self.rowAt(y))
-                elif hasattr(event, "pos"):
-                    y = int(event.pos().y())
+                ev = cast(Any, event)
+                pos_func = getattr(ev, "position", getattr(ev, "pos", None))
+                if callable(pos_func):
+                    point = pos_func()
+                    y = int(point.y())  # type: ignore
                     self._set_hovered_row(self.rowAt(y))
             elif event.type() == QEvent.Type.Leave:
                 self._set_hovered_row(-1)
@@ -339,7 +384,9 @@ class FileTable(QTableWidget):
                 item.setBackground(brush)
         top_left = self.model().index(row, 0)
         bottom_right = self.model().index(row, self.columnCount() - 1)
-        self.viewport().update(self.visualRect(top_left).united(self.visualRect(bottom_right)))
+        self.viewport().update(
+            self.visualRect(top_left).united(self.visualRect(bottom_right))
+        )
 
     def _show_context_menu(self, pos: QPoint) -> None:
         index = self.indexAt(pos)
@@ -365,7 +412,7 @@ class SearchResultsTable(QTableWidget):
         for column in range(1, 5):
             self.horizontalHeader().setSectionResizeMode(
                 column, QHeaderView.ResizeMode.ResizeToContents
-        )
+            )
         set_header_alignments(
             self,
             {
@@ -393,7 +440,9 @@ class SearchResultsTable(QTableWidget):
 
         path_item = SortableTableWidgetItem(str(result.path))
         path_item.setIcon(self.icons.icon("folder" if result.path.is_dir() else "file"))
-        path_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        path_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         path_item.setData(SORT_ROLE, str(result.path).casefold())
         path_item.setData(PATH_ROLE, str(result.path))
 
@@ -404,7 +453,9 @@ class SearchResultsTable(QTableWidget):
         match_item.setData(SORT_ROLE, result.match_type)
 
         kind_item = SortableTableWidgetItem(result.kind)
-        kind_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        kind_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         kind_item.setData(SORT_ROLE, result.kind.casefold())
 
         size_item = SortableTableWidgetItem(format_size(result.size))
@@ -446,11 +497,11 @@ class SearchResultsTable(QTableWidget):
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if watched == self.viewport():
             if event.type() in (QEvent.Type.MouseMove, QEvent.Type.HoverMove):
-                if hasattr(event, "position"):
-                    y = int(event.position().y())
-                    self._set_hovered_row(self.rowAt(y))
-                elif hasattr(event, "pos"):
-                    y = int(event.pos().y())
+                ev = cast(Any, event)
+                pos_func = getattr(ev, "position", getattr(ev, "pos", None))
+                if callable(pos_func):
+                    point = pos_func()
+                    y = int(point.y())  # type: ignore
                     self._set_hovered_row(self.rowAt(y))
             elif event.type() == QEvent.Type.Leave:
                 self._set_hovered_row(-1)
@@ -480,7 +531,9 @@ class SearchResultsTable(QTableWidget):
                 item.setBackground(brush)
         top_left = self.model().index(row, 0)
         bottom_right = self.model().index(row, self.columnCount() - 1)
-        self.viewport().update(self.visualRect(top_left).united(self.visualRect(bottom_right)))
+        self.viewport().update(
+            self.visualRect(top_left).united(self.visualRect(bottom_right))
+        )
 
 
 def configure_table(table: QTableWidget, multi_select: bool) -> None:

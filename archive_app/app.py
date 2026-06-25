@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import threading
@@ -7,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRunnable, Qt, QThreadPool
-from PySide6.QtGui import QAction, QKeySequence, QMouseEvent
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -284,6 +285,13 @@ class ArchiveManagerApp(QMainWindow):
                 self.go_forward()
                 return True
         return super().eventFilter(watched, event)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self.stop_search(silent=True)
+        self.thread_pool.clear()
+        self.thread_pool.waitForDone(1000)
+        event.accept()
+        os._exit(0)
 
     def load_directory(
         self, path: Path, add_history: bool = True, clear_forward: bool = True

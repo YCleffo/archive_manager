@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
@@ -38,19 +36,23 @@ class PathBar(QFrame):
         layout.addWidget(self.path_edit, 1)
 
         go_button = QToolButton(self)
+        go_button.setObjectName("PathButton")
         go_button.setText("Перейти")
-        go_button.setMinimumHeight(32)
+        go_button.setFixedHeight(28)
+        go_button.setMinimumWidth(96)
         go_button.setIcon(icons.icon("open"))
-        go_button.setIconSize(QSize(18, 18))
+        go_button.setIconSize(QSize(16, 16))
         go_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         go_button.clicked.connect(self._emit_navigate)
         make_interactive(go_button, "Открыть папку из строки пути")
 
         browse_button = QToolButton(self)
+        browse_button.setObjectName("PathButton")
         browse_button.setText("Обзор")
-        browse_button.setMinimumHeight(32)
+        browse_button.setFixedHeight(28)
+        browse_button.setMinimumWidth(86)
         browse_button.setIcon(icons.icon("folder"))
-        browse_button.setIconSize(QSize(18, 18))
+        browse_button.setIconSize(QSize(16, 16))
         browse_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         browse_button.clicked.connect(self.browse_requested.emit)
         make_interactive(browse_button, "Выбрать папку через системный диалог")
@@ -58,7 +60,7 @@ class PathBar(QFrame):
         buttons_wrap = QWidget(self)
         buttons_layout = QHBoxLayout(buttons_wrap)
         buttons_layout.setContentsMargins(0, 0, 0, 0)
-        buttons_layout.setSpacing(10)
+        buttons_layout.setSpacing(8)
         buttons_layout.addWidget(go_button)
         buttons_layout.addWidget(browse_button)
         layout.addWidget(buttons_wrap, alignment=Qt.AlignmentFlag.AlignVCenter)
