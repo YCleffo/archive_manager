@@ -1057,6 +1057,7 @@ def main() -> None:
     os.environ["QT_LOGGING_RULES"] = "*.debug=false;*.warning=false"
 
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")
 
     from PySide6.QtCore import QTranslator, QLibraryInfo
 
