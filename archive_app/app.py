@@ -68,8 +68,8 @@ class ArchiveManagerApp(QMainWindow):
 
         self.icons = IconFactory()
         self.current_path = Path.home().resolve()
-        self.history: list[Path] = []
-        self.forward_history: list[Path] = []
+        self.history: list[tuple[Path, int]] = []
+        self.forward_history: list[tuple[Path, int]] = []
         self._clipboard_paths: list[Path] = []
         self._clipboard_is_cut: bool = False
         self.undo_stack: list[tuple[str, Callable[[], None]]] = []
@@ -511,6 +511,7 @@ class ArchiveManagerApp(QMainWindow):
         add_history: bool = True,
         clear_forward: bool = True,
         preserve_view: bool = False,
+        scroll_to: int | None = None,
     ) -> None:
         try:
             path = Path(path).expanduser().resolve()
@@ -539,7 +540,8 @@ class ArchiveManagerApp(QMainWindow):
 
                 entries, signature = result
                 if add_history and path != self.current_path:
-                    self.history.append(self.current_path)
+                    current_scroll = self.file_table.verticalScrollBar().value()
+                    self.history.append((self.current_path, current_scroll))
                     if clear_forward:
                         self.forward_history.clear()
 
@@ -550,6 +552,10 @@ class ArchiveManagerApp(QMainWindow):
 
                 if preserve_view:
                     self._restore_table_view(selected_before, scroll_before)
+                elif scroll_to is not None:
+                    self.file_table.verticalScrollBar().setValue(scroll_to)
+                else:
+                    self.file_table.verticalScrollBar().setValue(0)
 
                 self.update_action_counts()
                 self.update_selection_status()
@@ -653,17 +659,19 @@ class ArchiveManagerApp(QMainWindow):
         if not self.history:
             self.set_status("История пуста")
             return
-        self.forward_history.append(self.current_path)
-        previous = self.history.pop()
-        self.load_directory(previous, add_history=False, clear_forward=False)
+        current_scroll = self.file_table.verticalScrollBar().value()
+        self.forward_history.append((self.current_path, current_scroll))
+        previous, scroll = self.history.pop()
+        self.load_directory(previous, add_history=False, clear_forward=False, scroll_to=scroll)
 
     def go_forward(self) -> None:
         if not self.forward_history:
             self.set_status("История вперёд пуста")
             return
-        self.history.append(self.current_path)
-        next_path = self.forward_history.pop()
-        self.load_directory(next_path, add_history=False, clear_forward=False)
+        current_scroll = self.file_table.verticalScrollBar().value()
+        self.history.append((self.current_path, current_scroll))
+        next_path, scroll = self.forward_history.pop()
+        self.load_directory(next_path, add_history=False, clear_forward=False, scroll_to=scroll)
 
     def get_selected_paths(self) -> list[Path]:
         return self.file_table.selected_paths()

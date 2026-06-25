@@ -373,7 +373,8 @@ def _build_audio_preview(path: Path, max_size: QSize) -> PreviewResult:
             # Check APIC frames for MP3 (ID3v2)
             if hasattr(f, 'tags') and f.tags is not None:  # type: ignore
                 for key in f.tags.keys():  # type: ignore
-                    if key.startswith('APIC'):
+                    key_str = str(cast(Any, key))
+                    if key_str.startswith('APIC'):
                         cover_data = f.tags[key].data  # type: ignore
                         break
                 
@@ -386,10 +387,10 @@ def _build_audio_preview(path: Path, max_size: QSize) -> PreviewResult:
                 if cover_data is None and 'covr' in f.tags:  # type: ignore
                     covrs = f.tags['covr']  # type: ignore
                     if covrs:
-                        cover_data = bytes(covrs[0])
+                        cover_data = bytes(cast(Any, covrs[0]))
         
         if cover_data:
-            image = QImage.fromData(cover_data)
+            image = QImage.fromData(cast(bytes, cover_data))
             
     except Exception:
         pass
