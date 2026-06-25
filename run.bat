@@ -1,87 +1,69 @@
 @echo off
-setlocal
+setlocal EnableExtensions
+cd /d "%~dp0"
+
 title Archive Manager
 color 0f
 
-cd /d "%~dp0"
+set "VENV_DIR=.venv"
+set "PYTHON_EXE=%VENV_DIR%\Scripts\python.exe"
+set "PYTHONW_EXE=%VENV_DIR%\Scripts\pythonw.exe"
 
-echo [INFO] Closing previous Archive Manager instances...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$target=(Resolve-Path '.\main.py').Path; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and ($_.Name -match '^(python|pythonw|py|pyw)\.exe$') -and ($_.CommandLine -like ('*' + $target + '*') -or ($_.CommandLine -like '*archive_manager*' -and $_.CommandLine -like '*main.py*')) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }" >nul 2>&1
-if exist ".archive_manager.pid" (
-    for /f "usebackq delims=" %%P in (".archive_manager.pid") do taskkill /PID %%P /F >nul 2>&1
-    del ".archive_manager.pid" >nul 2>&1
-)
+echo ==========================================
+echo   Archive Manager - development run
+echo ==========================================
+echo.
 
-set "PYTHON_CMD="
-set "PYTHON_GUI_EXE="
-set "PYTHON_GUI_ARGS="
-python --version >nul 2>&1
-if not errorlevel 1 (
-    set "PYTHON_CMD=python"
-    set "PYTHON_GUI_EXE=pythonw"
-)
-
-if not defined PYTHON_CMD (
-    py -3 --version >nul 2>&1
-    if not errorlevel 1 (
-        set "PYTHON_CMD=py -3"
-        set "PYTHON_GUI_EXE=pyw"
-        set "PYTHON_GUI_ARGS=-3"
-    )
-)
-
-if not defined PYTHON_CMD (
+if not exist "main.py" (
     color 0c
-    echo [ERROR] Python was not found.
-    echo Install Python 3 and add it to PATH, or use the Windows "py" launcher.
+    echo [ERROR] main.py not found. Run this file from the project root.
     pause
     exit /b 1
 )
 
-echo ========================================================
-echo                STARTING APPLICATION
-echo ========================================================
-echo.
-echo [INFO] Checking dependencies...
+if not exist "requirements.txt" (
+    color 0c
+    echo [ERROR] requirements.txt not found.
+    pause
+    exit /b 1
+)
 
-%PYTHON_CMD% -c "import PySide6" >nul 2>&1
+if not exist "%PYTHON_EXE%" (
+    echo [INFO] Creating virtual environment...
+    python -m venv "%VENV_DIR%"
+    if errorlevel 1 (
+        color 0c
+        echo [ERROR] Failed to create virtual environment.
+        pause
+        exit /b 1
+    )
+)
+
+echo [INFO] Checking dependencies...
+"%PYTHON_EXE%" -c "import PySide6, send2trash, PIL, imageio_ffmpeg" >nul 2>&1
 if errorlevel 1 (
     color 0e
-    echo [WARN] PySide6 is not installed.
-    echo.
-    choice /C YN /M "Install missing dependencies from requirements.txt?"
+    echo [WARN] Missing dependencies detected.
+    choice /C YN /M "Install dependencies from requirements.txt"
     if errorlevel 2 (
         color 0c
-        echo.
         echo [ERROR] The application cannot start without dependencies.
         pause
         exit /b 1
     )
-    echo.
+
     echo [INFO] Installing dependencies...
-    %PYTHON_CMD% -m pip install -r requirements.txt
+    "%PYTHON_EXE%" -m pip install --upgrade pip
+    "%PYTHON_EXE%" -m pip install -r requirements.txt
     if errorlevel 1 (
         color 0c
-        echo.
         echo [ERROR] Failed to install dependencies.
         pause
         exit /b 1
     )
-    color 0f
-    echo [OK] Dependencies installed successfully.
-    echo.
 )
 
-echo [INFO] Launching the main program...
-echo ========================================================
-echo.
-
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$argsList=@(); if ($env:PYTHON_GUI_ARGS) { $argsList += $env:PYTHON_GUI_ARGS }; $argsList += (Join-Path (Get-Location) 'main.py'); Start-Process -FilePath $env:PYTHON_GUI_EXE -ArgumentList $argsList -WorkingDirectory (Get-Location)" >nul 2>&1
-if errorlevel 1 (
-    color 0c
-    echo [ERROR] Failed to start the graphical application.
-    pause
-    exit /b 1
-)
-
+color 0f
+echo [INFO] Launching application...
+start "Archive Manager" "%PYTHONW_EXE%" "%CD%\main.py"
 exit /b 0
