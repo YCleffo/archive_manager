@@ -306,7 +306,7 @@ def _build_info_preview(path: Path, kind: str) -> PreviewResult:
 def _build_document_preview(path: Path, max_size: QSize) -> PreviewResult:
     stat = path.stat()
     image = None
-    
+
     if path.suffix.lower() == ".pdf":
         try:
             import fitz  # type: ignore
@@ -323,7 +323,7 @@ def _build_document_preview(path: Path, max_size: QSize) -> PreviewResult:
             doc.close()
         except Exception:
             pass
-            
+
     if image is None:
         provider = QFileIconProvider()
         icon = provider.icon(QFileInfo(str(path)))
@@ -363,38 +363,39 @@ def _build_document_preview(path: Path, max_size: QSize) -> PreviewResult:
 def _build_audio_preview(path: Path, max_size: QSize) -> PreviewResult:
     stat = path.stat()
     image = None
-    
+
     try:
         import mutagen  # type: ignore
+
         f = mutagen.File(str(path))  # type: ignore
         cover_data = None
-        
+
         if f is not None:
             # Check APIC frames for MP3 (ID3v2)
-            if hasattr(f, 'tags') and f.tags is not None:  # type: ignore
+            if hasattr(f, "tags") and f.tags is not None:  # type: ignore
                 for key in f.tags.keys():  # type: ignore
                     key_str = str(cast(Any, key))
-                    if key_str.startswith('APIC'):
+                    if key_str.startswith("APIC"):
                         cover_data = f.tags[key].data  # type: ignore
                         break
-                
+
                 # Check FLAC / OGG
-                if cover_data is None and hasattr(f.tags, 'pictures'):  # type: ignore
+                if cover_data is None and hasattr(f.tags, "pictures"):  # type: ignore
                     if f.tags.pictures:  # type: ignore
                         cover_data = f.tags.pictures[0].data  # type: ignore
-                        
+
                 # Check MP4 / M4A
-                if cover_data is None and 'covr' in f.tags:  # type: ignore
-                    covrs = f.tags['covr']  # type: ignore
+                if cover_data is None and "covr" in f.tags:  # type: ignore
+                    covrs = f.tags["covr"]  # type: ignore
                     if covrs:
                         cover_data = bytes(cast(Any, covrs[0]))
-        
+
         if cover_data:
             image = QImage.fromData(cast(bytes, cover_data))
-            
+
     except Exception:
         pass
-        
+
     if image and (
         image.size().width() > max_size.width()
         or image.size().height() > max_size.height()

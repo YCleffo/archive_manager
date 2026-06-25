@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRunnable, Qt, QThreadPool, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QMouseEvent, QColor, QIcon
+from PySide6.QtGui import QAction, QCloseEvent, QMouseEvent, QColor, QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QInputDialog,
@@ -24,22 +24,13 @@ from PySide6.QtWidgets import (
 )
 
 from .archive_utils import (
-    create_zip_archive,
-    extract_archive,
     is_supported_archive,
     list_archive_members,
 )
 from .file_utils import (
     FileEntry,
-    calculate_folder_size,
-    copy_items,
-    create_folder,
-    delete_items,
-    format_size,
     list_directory,
-    move_items,
     open_in_system,
-    rename_item,
 )
 from .preview_utils import PreviewResult, build_preview
 from .search_utils import SearchResult, search_files
@@ -54,6 +45,11 @@ from .ui.tables import FileTable, TableCard, PATH_ROLE
 from .ui.theme import APP_STYLESHEET
 from .ui.workers import OperationWorker, SearchWorker
 
+from .controllers.clipboard_manager import ClipboardManager
+from .controllers.navigation_manager import NavigationManager
+from .controllers.action_manager import ActionManager
+from .controllers.file_operations import FileOperationsController
+
 PID_FILE = Path(__file__).resolve().parent.parent / ".archive_manager.pid"
 
 DirectorySignature = tuple[tuple[str, bool, int, int], ...]
@@ -67,11 +63,10 @@ class ArchiveManagerApp(QMainWindow):
         self.setMinimumSize(1040, 780)
 
         self.icons = IconFactory()
-        self.current_path = Path.home().resolve()
-        self.history: list[tuple[Path, int]] = []
-        self.forward_history: list[tuple[Path, int]] = []
-        self._clipboard_paths: list[Path] = []
-        self._clipboard_is_cut: bool = False
+        self.clipboard_manager = ClipboardManager(self)
+        self.navigation_manager = NavigationManager(self)
+        self.action_manager = ActionManager(self, self.icons)
+        self.file_operations = FileOperationsController(self)
         self.undo_stack: list[tuple[str, Callable[[], None]]] = []
         self.search_cancel_event: threading.Event | None = None
         self.search_generation = 0
@@ -84,6 +79,8 @@ class ArchiveManagerApp(QMainWindow):
         self.workers: list[QRunnable] = []
 
         self.setStyleSheet(APP_STYLESHEET)
+
+        self._setup_controllers()
         self.app_actions = self._create_actions()
         self.app_actions["paste"].setEnabled(False)
         self._build_layout()
@@ -96,7 +93,44 @@ class ArchiveManagerApp(QMainWindow):
         self._auto_refresh_timer.timeout.connect(self._auto_refresh_current_directory)
         self._auto_refresh_timer.start()
 
-        self.load_directory(self.current_path, add_history=False)
+        self.navigation_manager.current_path = Path.home().resolve()
+        self.load_directory(self.navigation_manager.current_path, add_history=False)
+
+    def _setup_controllers(self) -> None:
+        self.clipboard_manager.clipboard_changed.connect(self._on_clipboard_changed)
+        self.navigation_manager.navigate_requested.connect(self.load_directory)
+        self.navigation_manager.history_changed.connect(self._on_history_changed)
+        self.file_operations.status_requested.connect(self.set_status)
+        self.file_operations.refresh_requested.connect(self.refresh)
+        self.file_operations.error_occurred.connect(self._show_operation_error)
+        self.file_operations.operation_requested.connect(self._start_operation)
+        self.file_operations.undo_added.connect(self._push_undo)
+        self.file_operations.size_calculated.connect(self._on_size_calculated)
+
+    def _on_clipboard_changed(self, count: int, is_cut: bool) -> None:
+        self.update_action_counts()
+        self.update_selection_status()
+
+    def _on_history_changed(self, can_go_back: bool, can_go_forward: bool) -> None:
+        self.update_action_counts()
+
+    def _on_size_calculated(
+        self, path: Path, total_size: int, total_files: int
+    ) -> None:
+        from .file_utils import format_size
+
+        self.file_table.set_folder_size(path, total_size)
+        QMessageBox.information(
+            self,
+            "Размер папки",
+            f"Папка: {path.name}\\nРазмер: {format_size(total_size)}\\nФайлов: {total_files}",
+        )
+        self.set_status(f"Размер {path.name}: {format_size(total_size)}")
+
+    def _get_scroll(self) -> int:
+        if hasattr(self, "file_table"):
+            return self.file_table.verticalScrollBar().value()
+        return 0
 
     def _create_actions(self) -> dict[str, QAction]:
         specs: list[tuple[str, str, str, str, Callable[[], None], str | None]] = [
@@ -113,7 +147,7 @@ class ArchiveManagerApp(QMainWindow):
                 "Назад",
                 "back",
                 "Вернуться к предыдущей папке (Alt+Left)",
-                self.go_back,
+                lambda: self.navigation_manager.go_back(self._get_scroll()),
                 "Alt+Left",
             ),
             (
@@ -121,7 +155,7 @@ class ArchiveManagerApp(QMainWindow):
                 "Вперёд",
                 "forward",
                 "Перейти к следующей папке в истории (Alt+Right)",
-                self.go_forward,
+                lambda: self.navigation_manager.go_forward(self._get_scroll()),
                 "Alt+Right",
             ),
             (
@@ -129,7 +163,7 @@ class ArchiveManagerApp(QMainWindow):
                 "Вверх",
                 "up",
                 "Перейти на уровень выше (Alt+Up)",
-                self.go_up,
+                self.navigation_manager.go_up,
                 "Alt+Up",
             ),
             (
@@ -137,7 +171,7 @@ class ArchiveManagerApp(QMainWindow):
                 "Домой",
                 "home",
                 "Открыть домашнюю папку (Alt+Home)",
-                self.go_home,
+                self.navigation_manager.go_home,
                 "Alt+Home",
             ),
             (
@@ -177,7 +211,9 @@ class ArchiveManagerApp(QMainWindow):
                 "Новая папка",
                 "new-folder",
                 "Создать новую папку в текущем каталоге",
-                self.new_folder,
+                lambda: self.file_operations.create_folder(
+                    self.navigation_manager.current_path, self._ask_new_folder_name()
+                ),
                 None,
             ),
             (
@@ -185,7 +221,7 @@ class ArchiveManagerApp(QMainWindow):
                 "Копировать",
                 "copy",
                 "Скопировать выбранные объекты в буфер",
-                self.copy_selected,
+                lambda: self.clipboard_manager.copy_items(self.get_selected_paths()),
                 "Ctrl+C",
             ),
             (
@@ -193,7 +229,7 @@ class ArchiveManagerApp(QMainWindow):
                 "Вырезать",
                 "cut",
                 "Вырезать выбранные объекты в буфер",
-                self.cut_selected,
+                lambda: self.clipboard_manager.cut_items(self.get_selected_paths()),
                 "Ctrl+X",
             ),
             (
@@ -201,7 +237,11 @@ class ArchiveManagerApp(QMainWindow):
                 "Вставить",
                 "paste",
                 "Вставить объекты из буфера",
-                self.paste_clipboard,
+                lambda: self.file_operations.paste_items(
+                    self.clipboard_manager.paths,
+                    self.clipboard_manager.is_cut,
+                    self.navigation_manager.current_path,
+                ),
                 "Ctrl+V",
             ),
             (
@@ -261,28 +301,15 @@ class ArchiveManagerApp(QMainWindow):
                 None,
             ),
         ]
-
-        actions: dict[str, QAction] = {}
-        for key, text, icon_name, tooltip, callback, shortcut in specs:
-            action = QAction(self.icons.icon(icon_name), text, self)
-            action.setToolTip(tooltip)
-            action.setStatusTip(tooltip)
-            if shortcut:
-                action.setShortcut(QKeySequence(shortcut))
-
-            def on_triggered(
-                _checked: bool = False, cb: Callable[[], None] = callback
-            ) -> None:
-                cb()
-
-            action.triggered.connect(on_triggered)
-            self.addAction(action)
-            actions[key] = action
-
+        actions = self.action_manager.setup_actions(specs)
         preview_action = actions["toggle_preview_panel"]
         preview_action.setCheckable(True)
         preview_action.setChecked(True)
         return actions
+
+    def _ask_new_folder_name(self) -> str:
+        name, ok = QInputDialog.getText(self, "Новая папка", "Введите имя папки:")
+        return name if ok else ""
 
     def _build_layout(self) -> None:
         central = QWidget(self)
@@ -306,9 +333,9 @@ class ArchiveManagerApp(QMainWindow):
         self.file_table.open_requested.connect(self.open_selected)
         self.file_table.delete_requested.connect(self.delete_selected)
         self.file_table.rename_requested.connect(self.rename_selected)
-        self.file_table.copy_requested.connect(self.copy_selected)
-        self.file_table.cut_requested.connect(self.cut_selected)
-        self.file_table.paste_requested.connect(self.paste_clipboard)
+        self.file_table.copy_requested.connect(self.app_actions["copy"].trigger)
+        self.file_table.cut_requested.connect(self.app_actions["cut"].trigger)
+        self.file_table.paste_requested.connect(self.app_actions["paste"].trigger)
         self.file_table.selection_changed.connect(self.on_file_selection_changed)
         self.file_table.context_menu_requested.connect(self.show_file_context_menu)
         self.file_table.size_requested.connect(self.calculate_folder_size_from_button)
@@ -363,11 +390,7 @@ class ArchiveManagerApp(QMainWindow):
         return f"Выбрано: {total} | файлов: {files} | папок: {folders}"
 
     def _clipboard_text(self) -> str:
-        count = len(self._clipboard_paths)
-        if count == 0:
-            return "Буфер пуст"
-        mode = "вырезано" if self._clipboard_is_cut else "скопировано"
-        return f"В буфере: {mode} {count} | можно вставить: {count}"
+        return self.clipboard_manager.get_status_text()
 
     def update_selection_status(self) -> None:
         self.set_status(f"{self._selection_text()} | {self._clipboard_text()}")
@@ -435,7 +458,7 @@ class ArchiveManagerApp(QMainWindow):
 
     def update_action_counts(self) -> None:
         selected_count = len(self.get_selected_paths())
-        clipboard_count = len(self._clipboard_paths)
+        clipboard_count = len(self.clipboard_manager.paths)
 
         self.app_actions["copy"].setText(
             f"Копировать ({selected_count})" if selected_count else "Копировать"
@@ -462,9 +485,9 @@ class ArchiveManagerApp(QMainWindow):
             self.app_actions["paste"].setStatusTip("Вставить объекты из буфера")
             self.app_actions["paste"].setEnabled(False)
 
-        self.app_actions["back"].setEnabled(bool(self.history))
-        self.app_actions["forward"].setEnabled(bool(self.forward_history))
-        self.app_actions["up"].setEnabled(self.current_path.parent != self.current_path)
+        self.app_actions["back"].setEnabled(self.navigation_manager.can_go_back())
+        self.app_actions["forward"].setEnabled(self.navigation_manager.can_go_forward())
+        self.app_actions["up"].setEnabled(self.navigation_manager.can_go_up())
 
         if hasattr(self, "action_bar"):
             self.action_bar.schedule_overflow_update()
@@ -478,12 +501,11 @@ class ArchiveManagerApp(QMainWindow):
         ):
             button = event.button()
             if button == Qt.MouseButton.BackButton:
-                self.go_back()
+                self.navigation_manager.go_back(self._get_scroll())
                 return True
             if button == Qt.MouseButton.ForwardButton:
-                self.go_forward()
+                self.navigation_manager.go_forward(self._get_scroll())
                 return True
-
         return super().eventFilter(watched, event)
 
     def closeEvent(self, event: QCloseEvent) -> None:
@@ -539,13 +561,15 @@ class ArchiveManagerApp(QMainWindow):
                     return
 
                 entries, signature = result
-                if add_history and path != self.current_path:
+                if add_history and path != self.navigation_manager.current_path:
                     current_scroll = self.file_table.verticalScrollBar().value()
-                    self.history.append((self.current_path, current_scroll))
+                    self.navigation_manager.history.append(
+                        (self.navigation_manager.current_path, current_scroll)
+                    )
                     if clear_forward:
-                        self.forward_history.clear()
+                        self.navigation_manager.forward_history.clear()
 
-                self.current_path = path
+                self.navigation_manager.current_path = path
                 self._last_directory_signature = signature
                 self.path_bar.set_path(str(path))
                 self.file_table.set_entries(entries)
@@ -586,7 +610,9 @@ class ArchiveManagerApp(QMainWindow):
 
     def _read_current_directory_signature(self) -> DirectorySignature | None:
         try:
-            return self._signature_from_entries(list_directory(self.current_path))
+            return self._signature_from_entries(
+                list_directory(self.navigation_manager.current_path)
+            )
         except OSError:
             return None
 
@@ -618,7 +644,10 @@ class ArchiveManagerApp(QMainWindow):
             return
         if self.thread_pool.activeThreadCount() > 0:
             return
-        if not self.current_path.exists() or not self.current_path.is_dir():
+        if (
+            not self.navigation_manager.current_path.exists()
+            or not self.navigation_manager.current_path.is_dir()
+        ):
             return
 
         self._auto_refresh_busy = True
@@ -631,7 +660,7 @@ class ArchiveManagerApp(QMainWindow):
                 return
             if signature != self._last_directory_signature:
                 self.load_directory(
-                    self.current_path,
+                    self.navigation_manager.current_path,
                     add_history=False,
                     clear_forward=False,
                     preserve_view=True,
@@ -640,38 +669,16 @@ class ArchiveManagerApp(QMainWindow):
             self._auto_refresh_busy = False
 
     def refresh(self) -> None:
-        self.load_directory(self.current_path, add_history=False, preserve_view=True)
+        self.load_directory(
+            self.navigation_manager.current_path, add_history=False, preserve_view=True
+        )
 
     def choose_directory(self) -> None:
-        dialog = FolderPickerDialog(self.current_path, self.icons, self)
+        dialog = FolderPickerDialog(
+            self.navigation_manager.current_path, self.icons, self
+        )
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.load_directory(dialog.get_result_path())
-
-    def go_up(self) -> None:
-        parent = self.current_path.parent
-        if parent != self.current_path:
-            self.load_directory(parent)
-
-    def go_home(self) -> None:
-        self.load_directory(Path.home())
-
-    def go_back(self) -> None:
-        if not self.history:
-            self.set_status("История пуста")
-            return
-        current_scroll = self.file_table.verticalScrollBar().value()
-        self.forward_history.append((self.current_path, current_scroll))
-        previous, scroll = self.history.pop()
-        self.load_directory(previous, add_history=False, clear_forward=False, scroll_to=scroll)
-
-    def go_forward(self) -> None:
-        if not self.forward_history:
-            self.set_status("История вперёд пуста")
-            return
-        current_scroll = self.file_table.verticalScrollBar().value()
-        self.history.append((self.current_path, current_scroll))
-        next_path, scroll = self.forward_history.pop()
-        self.load_directory(next_path, add_history=False, clear_forward=False, scroll_to=scroll)
 
     def get_selected_paths(self) -> list[Path]:
         return self.file_table.selected_paths()
@@ -706,21 +713,6 @@ class ArchiveManagerApp(QMainWindow):
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка", f"Не удалось открыть:\n{exc}")
 
-    def new_folder(self) -> None:
-        name, ok = QInputDialog.getText(self, "Новая папка", "Введите имя папки:")
-        if not ok or not name:
-            return
-        try:
-            created = create_folder(self.current_path, name)
-            self._push_undo(
-                f"создание папки {created.name}",
-                lambda created_path=created: delete_items([created_path]),
-            )
-            self.refresh()
-            self.set_status(f"Создана папка: {created.name}")
-        except Exception as exc:
-            QMessageBox.critical(self, "Ошибка", str(exc))
-
     def rename_selected(self) -> None:
         path = self.get_selected_path()
         if path is None:
@@ -731,105 +723,26 @@ class ArchiveManagerApp(QMainWindow):
         new_name, ok = QInputDialog.getText(
             self, "Переименовать", "Новое имя:", text=path.name
         )
-        if not ok or not new_name or new_name == path.name:
-            return
-        try:
-            renamed = rename_item(path, new_name)
-
-            def make_undo(source: Path, target: Path) -> Callable[[], None]:
-                def undo() -> None:
-                    source.rename(target)
-
-                return undo
-
-            self._push_undo(f"переименование {renamed.name}", make_undo(renamed, path))
-            self.refresh()
-            self.set_status(f"Переименовано: {renamed.name}")
-        except Exception as exc:
-            QMessageBox.critical(self, "Ошибка", str(exc))
+        if ok and new_name and new_name != path.name:
+            self.file_operations.rename_item(path, new_name)
 
     def delete_selected(self) -> None:
         paths = self.get_selected_paths()
         if not paths:
             QMessageBox.information(self, "Удаление", "Выберите файлы или папки")
             return
-        names = "\n".join(path.name for path in paths[:10])
+        names = "\\n".join(path.name for path in paths[:10])
         if len(paths) > 10:
-            names += f"\n...и ещё {len(paths) - 10}"
+            names += f"\\n...и ещё {len(paths) - 10}"
         answer = QMessageBox.question(
             self,
             "Удаление",
-            f"Переместить выбранные объекты в корзину?\n\n{names}\n\nЭто действие не удаляет файлы безвозвратно, но Ctrl+Z внутри программы не восстанавливает удаление из корзины.",
+            f"Переместить выбранные объекты в корзину?\\n\\n{names}\\n\\nЭто действие не удаляет файлы безвозвратно, но Ctrl+Z внутри программы не восстанавливает удаление из корзины.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
-        if answer != QMessageBox.StandardButton.Yes:
-            return
-        try:
-            delete_items(paths)
-            self.refresh()
-            self.set_status_with_context(f"Перемещено в корзину: {len(paths)}")
-        except Exception as exc:
-            QMessageBox.critical(self, "Ошибка", f"Не удалось удалить:\n{exc}")
-
-    def copy_selected(self) -> None:
-        paths = self.get_selected_paths()
-        if not paths:
-            QMessageBox.information(self, "Копирование", "Выберите файлы или папки")
-            return
-        self._clipboard_paths = paths
-        self._clipboard_is_cut = False
-        self.update_action_counts()
-        self.set_status_with_context(
-            f"Скопировано в буфер: {len(paths)} | можно вставить: {len(paths)}"
-        )
-
-    def cut_selected(self) -> None:
-        paths = self.get_selected_paths()
-        if not paths:
-            QMessageBox.information(self, "Вырезание", "Выберите файлы или папки")
-            return
-        self._clipboard_paths = paths
-        self._clipboard_is_cut = True
-        self.update_action_counts()
-        self.set_status_with_context(
-            f"Вырезано в буфер: {len(paths)} | можно вставить: {len(paths)}"
-        )
-
-    def paste_clipboard(self) -> None:
-        if not self._clipboard_paths:
-            return
-
-        is_cut = self._clipboard_is_cut
-        paths = self._clipboard_paths
-        dest = self.current_path
-
-        def task(status: Callable[[str], None]) -> int:
-            if is_cut:
-                status("Перемещение...")
-                moved = move_items(paths, dest)
-                return len(moved)
-            else:
-                status("Копирование...")
-                copied = copy_items(paths, dest)
-                return len(copied)
-
-        def on_success(count: int) -> None:
-            if is_cut:
-                self._clipboard_paths = []
-                self._clipboard_is_cut = False
-                self.update_action_counts()
-                self.set_status_with_context(
-                    f"Перемещено объектов: {count} | буфер очищен"
-                )
-            else:
-                self.update_action_counts()
-                self.set_status_with_context(
-                    f"Скопировано объектов: {count} | можно вставить ещё: {len(self._clipboard_paths)}"
-                )
-            self.refresh()
-
-        self._start_operation(task, "Ошибка вставки", on_success)
+        if answer == QMessageBox.StandardButton.Yes:
+            self.file_operations.delete_items(paths)
 
     def create_zip_from_selection(self) -> None:
         paths = self.get_selected_paths()
@@ -838,34 +751,13 @@ class ArchiveManagerApp(QMainWindow):
                 self, "Создать ZIP", "Выберите файлы или папки для архивации"
             )
             return
-
         from archive_app.file_utils import ensure_unique_path
 
         default_name = "архив.zip" if len(paths) != 1 else f"{paths[0].stem}.zip"
-        output_path = ensure_unique_path(self.current_path / default_name)
-
-        def task(status: Callable[[str], None]) -> Path:
-            status("Создание архива...")
-            return create_zip_archive(
-                output_path,
-                paths,
-                progress=lambda name: status(f"Архивирую: {Path(name).name}"),
-            )
-
-        self._start_operation(
-            task,
-            "Ошибка создания архива",
-            lambda created: self._zip_created(Path(created)),
+        output_path = ensure_unique_path(
+            self.navigation_manager.current_path / default_name
         )
-
-    def _zip_created(self, created: Path) -> None:
-        self._push_undo(
-            f"создание архива {created.name}",
-            lambda created_path=created: delete_items([created_path]),
-        )
-        self.refresh()
-        QMessageBox.information(self, "Готово", f"Архив создан:\n{created}")
-        self.set_status_with_context(f"Архив создан: {created.name}")
+        self.file_operations.create_zip(paths, output_path)
 
     def show_archive_contents(self) -> None:
         path = self.get_selected_path()
@@ -898,30 +790,12 @@ class ArchiveManagerApp(QMainWindow):
         if path is None or not path.is_file() or not is_supported_archive(path):
             QMessageBox.information(self, "Распаковка", "Выберите архив для распаковки")
             return
-
         from archive_app.file_utils import ensure_unique_path
 
-        destination_path = ensure_unique_path(self.current_path / path.stem)
-
-        def task(status: Callable[[str], None]) -> tuple[Path, Path]:
-            status("Распаковка архива...")
-            extract_archive(
-                path,
-                destination_path,
-                progress=lambda name: status(f"Распаковываю: {name}"),
-            )
-            return path, destination_path
-
-        self._start_operation(
-            task,
-            "Ошибка распаковки",
-            lambda result: self._archive_extracted(result[0], result[1]),
+        destination_path = ensure_unique_path(
+            self.navigation_manager.current_path / path.stem
         )
-
-    def _archive_extracted(self, archive_path: Path, destination: Path) -> None:
-        self.load_directory(destination)
-        QMessageBox.information(self, "Готово", f"Архив распакован в:\n{destination}")
-        self.set_status_with_context(f"Распаковано: {archive_path.name}")
+        self.file_operations.extract_archive(path, destination_path)
 
     def calculate_selected_size(self) -> None:
         path = self.get_selected_path()
@@ -930,36 +804,10 @@ class ArchiveManagerApp(QMainWindow):
                 self, "Размер", "Выберите папку для подсчёта размера"
             )
             return
-        self.calculate_folder_size_for_path(path, show_dialog=True)
+        self.file_operations.calculate_size(path)
 
     def calculate_folder_size_from_button(self, path: Path) -> None:
-        self.calculate_folder_size_for_path(path, show_dialog=False)
-
-    def calculate_folder_size_for_path(self, path: Path, show_dialog: bool) -> None:
-        def task(status: Callable[[str], None]) -> tuple[Path, int, int]:
-            status(f"Вычисление размера: {path.name}...")
-            total_size, total_files = calculate_folder_size(path)
-            return path, total_size, total_files
-
-        self._start_operation(
-            task,
-            "Ошибка подсчёта размера",
-            lambda result: self._folder_size_ready(
-                result[0], result[1], result[2], show_dialog
-            ),
-        )
-
-    def _folder_size_ready(
-        self, path: Path, total_size: int, total_files: int, show_dialog: bool = True
-    ) -> None:
-        self.file_table.set_folder_size(path, total_size)
-        if show_dialog:
-            QMessageBox.information(
-                self,
-                "Размер папки",
-                f"Папка: {path.name}\nРазмер: {format_size(total_size)}\nФайлов: {total_files}",
-            )
-        self.set_status(f"Размер {path.name}: {format_size(total_size)}")
+        self.file_operations.calculate_size(path)
 
     def toggle_preview_panel(self) -> None:
         action = self.app_actions["toggle_preview_panel"]
@@ -1018,7 +866,7 @@ class ArchiveManagerApp(QMainWindow):
         self.search_cancel_event = threading.Event()
         worker = SearchWorker(
             search_function=search_files,
-            root=self.current_path,
+            root=self.navigation_manager.current_path,
             query=query,
             extensions_raw=self.search_panel.extensions(),
             include_content=self.search_panel.include_content(),
@@ -1112,7 +960,7 @@ class ArchiveManagerApp(QMainWindow):
         for key in ("copy", "cut", "paste", "rename", "delete"):
             action = self.app_actions[key]
             if key == "paste":
-                action.setEnabled(bool(self._clipboard_paths))
+                action.setEnabled(bool(self.clipboard_manager.paths))
             menu.addAction(action)
         menu.addSeparator()
         menu.addAction(self.app_actions["size"])
