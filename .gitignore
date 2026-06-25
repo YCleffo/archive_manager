@@ -21,3 +21,4 @@ dist/
 /tools/ffprobe.exe
 archive_app/tools/ffmpeg.exe
 ffprobe.exe
+ffmpeg.exe
