@@ -294,12 +294,14 @@ class FileTable(QTableWidget):
         self.cellEntered.connect(self._on_cell_entered)
 
     def set_entries(self, entries: list[FileEntry]) -> None:
+        self.setUpdatesEnabled(False)
         self.setSortingEnabled(False)
         self.setRowCount(0)
         for entry in entries:
             self._insert_entry(entry)
         self.setSortingEnabled(True)
         self.sortItems(0, Qt.SortOrder.AscendingOrder)
+        self.setUpdatesEnabled(True)
 
     def selected_paths(self) -> list[Path]:
         rows = sorted({index.row() for index in self.selectionModel().selectedRows()})

@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
+from send2trash import send2trash
+
 
 @dataclass(frozen=True)
 class FileEntry:
@@ -113,6 +115,18 @@ def copy_items(paths: Iterable[Path], destination: Path) -> list[Path]:
     copied: list[Path] = []
     for source in paths:
         source = Path(source).resolve()
+        
+        if source.is_dir():
+            try:
+                if destination == source or destination.is_relative_to(source):
+                    raise ValueError(f"Нельзя скопировать папку внутрь самой себя: {source.name}")
+            except AttributeError:
+                try:
+                    destination.relative_to(source)
+                    raise ValueError(f"Нельзя скопировать папку внутрь самой себя: {source.name}")
+                except ValueError:
+                    pass
+
         target = ensure_unique_path(destination / source.name)
         if source.is_dir():
             shutil.copytree(source, target)
@@ -128,6 +142,18 @@ def move_items(paths: Iterable[Path], destination: Path) -> list[Path]:
     moved: list[Path] = []
     for source in paths:
         source = Path(source).resolve()
+        
+        if source.is_dir():
+            try:
+                if destination == source or destination.is_relative_to(source):
+                    raise ValueError(f"Нельзя переместить папку внутрь самой себя: {source.name}")
+            except AttributeError:
+                try:
+                    destination.relative_to(source)
+                    raise ValueError(f"Нельзя переместить папку внутрь самой себя: {source.name}")
+                except ValueError:
+                    pass
+                    
         target = ensure_unique_path(destination / source.name)
         shutil.move(str(source), str(target))
         moved.append(target)
@@ -137,10 +163,8 @@ def move_items(paths: Iterable[Path], destination: Path) -> list[Path]:
 def delete_items(paths: Iterable[Path]) -> None:
     for path in paths:
         path = Path(path)
-        if path.is_dir():
-            shutil.rmtree(path)
-        else:
-            path.unlink(missing_ok=True)
+        if path.exists():
+            send2trash(str(path))
 
 
 def rename_item(path: Path, new_name: str) -> Path:

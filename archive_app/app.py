@@ -28,6 +28,7 @@ from .archive_utils import (
     list_archive_members,
 )
 from .file_utils import (
+    FileEntry,
     calculate_folder_size,
     copy_items,
     create_folder,
@@ -332,7 +333,6 @@ class ArchiveManagerApp(QMainWindow):
         self.thread_pool.waitForDone(1000)
         _remove_pid_file()
         event.accept()
-        os._exit(0)
 
     def load_directory(
         self, path: Path, add_history: bool = True, clear_forward: bool = True
@@ -341,15 +341,26 @@ class ArchiveManagerApp(QMainWindow):
             path = Path(path).expanduser().resolve()
             if not path.exists() or not path.is_dir():
                 raise NotADirectoryError(str(path))
-            if add_history and path != self.current_path:
-                self.history.append(self.current_path)
-                if clear_forward:
-                    self.forward_history.clear()
-            self.current_path = path
-            self.path_bar.set_path(str(path))
-            entries = list_directory(path)
-            self.file_table.set_entries(entries)
-            self.set_status(f"Открыто: {path} | объектов: {len(entries)}")
+            
+            def task(status: Callable[[str], None]) -> list[FileEntry]:
+                status(f"Чтение директории: {path.name}...")
+                return list_directory(path)
+
+            def on_result(entries: list[FileEntry]) -> None:
+                if add_history and path != self.current_path:
+                    self.history.append(self.current_path)
+                    if clear_forward:
+                        self.forward_history.clear()
+                self.current_path = path
+                self.path_bar.set_path(str(path))
+                self.file_table.set_entries(entries)
+                self.set_status(f"Открыто: {path} | объектов: {len(entries)}")
+
+            self._start_operation(
+                task,
+                "Ошибка загрузки",
+                on_result
+            )
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка", f"Не удалось открыть папку:\n{exc}")
             self.set_status("Ошибка открытия папки")

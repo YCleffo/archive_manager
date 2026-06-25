@@ -8,9 +8,11 @@ from typing import Any, Callable, Iterable
 
 ProgressCallback = Callable[[str], Any]
 
-
 SUPPORTED_ARCHIVES = (".zip", ".tar", ".gz", ".tgz", ".bz2")
 
+MAX_EXTRACT_FILES = 50_000
+MAX_EXTRACT_SIZE = 10 * 1024 * 1024 * 1024  # 10 GB
+MAX_COMPRESSION_RATIO = 1000
 
 def _common_parent(paths: list[Path]) -> Path:
     if len(paths) == 1:
@@ -20,7 +22,6 @@ def _common_parent(paths: list[Path]) -> Path:
             [str(path.parent if path.is_file() else path.parent) for path in paths]
         )
     )
-
 
 def create_zip_archive(
     output_zip: Path,
@@ -36,6 +37,19 @@ def create_zip_archive(
     if missing:
         raise FileNotFoundError("Не найдены: " + ", ".join(missing))
 
+    # Prevent archiving into itself
+    for path in paths:
+        try:
+            if path == output_zip or output_zip.is_relative_to(path):
+                raise ValueError(f"Нельзя сохранить архив внутрь архивируемой папки: {path.name}")
+        except AttributeError:
+            # Fallback for older python without is_relative_to
+            try:
+                output_zip.relative_to(path)
+                raise ValueError(f"Нельзя сохранить архив внутрь архивируемой папки: {path.name}")
+            except ValueError:
+                pass
+
     output_zip.parent.mkdir(parents=True, exist_ok=True)
     common_parent = _common_parent(paths)
 
@@ -44,7 +58,6 @@ def create_zip_archive(
     ) as archive:
         for source in paths:
             if source.is_dir():
-                # Empty folders are stored too, otherwise they disappear from ZIP.
                 has_any = False
                 for item in source.rglob("*"):
                     has_any = True
@@ -65,21 +78,21 @@ def create_zip_archive(
 
     return output_zip
 
-
 def is_supported_archive(path: Path) -> bool:
     name = Path(path).name.lower()
     return name.endswith((".zip", ".tar", ".tar.gz", ".tgz", ".tar.bz2"))
 
-
 def _safe_target(destination: Path, member_name: str) -> Path:
     destination = destination.resolve()
-    target = (destination / member_name).resolve()
+    member_name_clean = member_name.lstrip("/").lstrip("\\")
+    if ".." in member_name_clean:
+        raise ValueError(f"Опасный путь '..' в архиве: {member_name}")
+    target = (destination / member_name_clean).resolve()
     try:
         target.relative_to(destination)
     except ValueError as exc:
         raise ValueError(f"Небезопасный путь в архиве: {member_name}") from exc
     return target
-
 
 def extract_archive(
     archive_path: Path,
@@ -94,26 +107,65 @@ def extract_archive(
         raise FileNotFoundError(f"Архив не найден: {archive_path}")
 
     if archive_path.suffix.lower() == ".zip":
+        total_size = 0
+        file_count = 0
         with zipfile.ZipFile(archive_path, "r") as archive:
             for member in archive.infolist():
-                _safe_target(destination, member.filename)
+                file_count += 1
+                if file_count > MAX_EXTRACT_FILES:
+                    raise ValueError("Превышен лимит количества файлов в архиве (Zip Bomb)")
+                total_size += member.file_size
+                if total_size > MAX_EXTRACT_SIZE:
+                    raise ValueError("Превышен лимит распакованного размера (Zip Bomb)")
+                if member.compress_size > 0 and (member.file_size / member.compress_size) > MAX_COMPRESSION_RATIO:
+                    raise ValueError(f"Подозрительный уровень сжатия у файла: {member.filename} (Zip Bomb)")
+
+                target = _safe_target(destination, member.filename)
+                
+                # Check for overwriting
+                if target.exists() and target.is_dir() and not member.is_dir():
+                    raise ValueError(f"Конфликт: файл из архива пытается перезаписать папку {target.name}")
+
                 if progress:
                     progress(member.filename)
+                
+                # Note: zipfile.extract() resolves to the same safe target internally
                 archive.extract(member, destination)
         return destination
 
     if tarfile.is_tarfile(archive_path):
         with tarfile.open(archive_path, "r:*") as archive:
             members = archive.getmembers()
+            if len(members) > MAX_EXTRACT_FILES:
+                raise ValueError("Превышен лимит количества файлов в архиве (Tar Bomb)")
+            
+            total_size = sum(m.size for m in members)
+            if total_size > MAX_EXTRACT_SIZE:
+                 raise ValueError("Превышен лимит распакованного размера (Tar Bomb)")
+
+            safe_members: list[tarfile.TarInfo] = []
             for member in members:
-                _safe_target(destination, member.name)
+                # Resolve safe target to check ZipSlip
+                target = _safe_target(destination, member.name)
+                
+                # Check for symlinks escaping sandbox
+                if member.issym() or member.islnk():
+                    link_target = Path(member.linkname)
+                    if link_target.is_absolute() or ".." in link_target.parts:
+                        continue # Skip dangerous links
+                
+                # Check for overwriting
+                if target.exists() and target.is_dir() and not member.isdir():
+                    raise ValueError(f"Конфликт: файл из архива пытается перезаписать папку {target.name}")
+                    
+                safe_members.append(member)
                 if progress:
                     progress(member.name)
-            archive.extractall(destination, members=members)
+                    
+            archive.extractall(destination, members=safe_members)
         return destination
 
     raise ValueError("Поддерживаются только .zip, .tar, .tar.gz, .tgz, .tar.bz2")
-
 
 def list_archive_members(archive_path: Path) -> list[str]:
     archive_path = Path(archive_path).expanduser().resolve()
