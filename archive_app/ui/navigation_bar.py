@@ -18,6 +18,7 @@ from .theme import make_interactive
 import os
 from PySide6.QtCore import QStringListModel
 
+
 class PathCompleter(QCompleter):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -31,7 +32,7 @@ class PathCompleter(QCompleter):
         if not text:
             self.string_list_model.setStringList([])
             return
-            
+
         text = text.replace("/", "\\")
         if text.endswith("\\"):
             dir_path = text
@@ -39,7 +40,7 @@ class PathCompleter(QCompleter):
             dir_path = os.path.dirname(text)
             if not dir_path.endswith("\\") and dir_path:
                 dir_path += "\\"
-                
+
         if not dir_path or not os.path.isdir(dir_path):
             self.string_list_model.setStringList([])
             return
@@ -55,6 +56,7 @@ class PathCompleter(QCompleter):
             self.string_list_model.setStringList(suggestions)
         except OSError:
             self.string_list_model.setStringList([])
+
 
 class PathBar(QFrame):
     navigate_requested = Signal(str)
