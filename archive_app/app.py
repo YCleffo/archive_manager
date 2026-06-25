@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRunnable, Qt, QThreadPool
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QMouseEvent
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QMouseEvent, QColor
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -287,6 +287,43 @@ class ArchiveManagerApp(QMainWindow):
             if button == Qt.MouseButton.ForwardButton:
                 self.go_forward()
                 return True
+
+        if (
+            event.type() == QEvent.Type.Show
+            and isinstance(watched, QWidget)
+            and watched.isWindow()
+        ):
+            flags = watched.windowFlags()
+            if (
+                (flags & Qt.WindowType.Popup)
+                or (flags & Qt.WindowType.ToolTip)
+                or isinstance(watched, QMenu)
+            ):
+                from PySide6.QtCore import QTimer
+
+                def fix_pos(w: QWidget = watched) -> None:
+                    try:
+                        window_rect = self.geometry()
+                        w_rect = w.geometry()
+                        new_pos = w_rect.topLeft()
+
+                        if new_pos.x() + w_rect.width() > window_rect.right():
+                            new_pos.setX(window_rect.right() - w_rect.width())
+                        if new_pos.y() + w_rect.height() > window_rect.bottom():
+                            new_pos.setY(window_rect.bottom() - w_rect.height())
+
+                        if new_pos.x() < window_rect.left():
+                            new_pos.setX(window_rect.left())
+                        if new_pos.y() < window_rect.top():
+                            new_pos.setY(window_rect.top())
+
+                        if new_pos != w_rect.topLeft():
+                            w.move(new_pos)
+                    except RuntimeError:
+                        pass
+
+                QTimer.singleShot(0, fix_pos)
+
         return super().eventFilter(watched, event)
 
     def closeEvent(self, event: QCloseEvent) -> None:
@@ -701,7 +738,22 @@ class ArchiveManagerApp(QMainWindow):
 
     def show_file_context_menu(self, pos: QPoint) -> None:
         menu = QMenu(self)
-        menu.setWindowFlag(Qt.WindowType.NoDropShadowWindowHint, True)
+        menu.setWindowFlags(
+            menu.windowFlags()
+            | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.NoDropShadowWindowHint
+        )
+        menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+
+        # Custom softer shadow
+        from PySide6.QtWidgets import QGraphicsDropShadowEffect
+
+        shadow = QGraphicsDropShadowEffect(menu)
+        shadow.setBlurRadius(12)
+        shadow.setColor(QColor(0, 0, 0, 40))
+        shadow.setOffset(0, 4)
+        menu.setGraphicsEffect(shadow)
+
         for key in ("open", "preview"):
             menu.addAction(self.app_actions[key])
         menu.addSeparator()
@@ -713,7 +765,6 @@ class ArchiveManagerApp(QMainWindow):
         menu.addSeparator()
         menu.addAction(self.app_actions["size"])
         menu.exec(pos)
-
 
     def _start_operation(
         self,

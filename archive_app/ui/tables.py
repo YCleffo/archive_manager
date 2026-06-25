@@ -127,7 +127,7 @@ class NoFocusDelegate(QStyledItemDelegate):
         has_icon = index.data(Qt.ItemDataRole.DecorationRole) is not None
 
         if has_icon:
-            # We ALWAYS manually draw cells with icons to keep icon size and text 
+            # We ALWAYS manually draw cells with icons to keep icon size and text
             # position completely stable, avoiding Qt's native resize on hover.
             if is_hovered:
                 painter.fillRect(clean_option.rect, HOVER_ROW_COLOR)
@@ -137,13 +137,12 @@ class NoFocusDelegate(QStyledItemDelegate):
                 painter.fillRect(clean_option.rect, QColor("#fafbfc"))
             else:
                 painter.fillRect(clean_option.rect, QColor("#ffffff"))
-                
+
             self._paint_content(painter, clean_option, index)
         else:
             if is_hovered:
                 painter.fillRect(clean_option.rect, HOVER_ROW_COLOR)
             super().paint(painter, clean_option, index)
-
 
     def _paint_content(
         self,
