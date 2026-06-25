@@ -8,8 +8,7 @@ from PySide6.QtCore import QObject, Signal
 class ClipboardManager(QObject):
     """Управляет состоянием буфера обмена приложения."""
 
-    # Сигнал испускается, когда состояние буфера меняется (скопировано, вырезано или очищено)
-    clipboard_changed = Signal(int, bool)  # count, is_cut
+    clipboard_changed = Signal(int, bool)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)

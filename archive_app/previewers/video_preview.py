@@ -91,7 +91,7 @@ def extract_video_frame(path: Path, max_size: QSize) -> tuple[QImage | None, str
             last_error = message or last_error
             continue
 
-        image = QImage.fromData(completed.stdout, b"PNG")
+        image = QImage.fromData(completed.stdout, "PNG")
         if image.isNull():
             last_error = (
                 "ffmpeg вернул кадр, но приложение не смогло прочитать картинку."

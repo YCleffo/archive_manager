@@ -21,12 +21,10 @@ class FileOperationsController(QObject):
 
     status_requested = Signal(str)
     refresh_requested = Signal()
-    error_occurred = Signal(str, str)  # operation_name, error_message
+    error_occurred = Signal(str, str)
 
-    # Сигнал для запроса старта фоновой операции: task_callable, error_status, on_result_callable
     operation_requested = Signal(object, str, object)
 
-    # Сигнал добавления действия в историю отмен: description, undo_callable
     undo_added = Signal(str, object)
 
     def __init__(self, parent: QObject | None = None) -> None:
@@ -95,8 +93,6 @@ class FileOperationsController(QObject):
         )
 
     def _paste_finished(self, count: int, is_cut: bool) -> None:
-        # Для обновления счетчиков буфера app.py должен будет очистить буфер
-        # Мы просто сообщаем, что нужно обновить интерфейс
         self.refresh_requested.emit()
         if is_cut:
             self.status_requested.emit(f"Перемещено объектов: {count}")
@@ -151,14 +147,12 @@ class FileOperationsController(QObject):
             total_size, total_files = calculate_folder_size(path)
             return path, total_size, total_files
 
-        # Для подсчета размера возвращаем результат через другой сигнал
         self.operation_requested.emit(
             task,
             "Ошибка подсчёта размера",
             lambda result: self._size_calculated(result[0], result[1], result[2]),  # type: ignore
         )
 
-    # Мы создадим сигнал специально для размера
     size_calculated = Signal(Path, int, int)
 
     def _size_calculated(self, path: Path, total_size: int, total_files: int) -> None:

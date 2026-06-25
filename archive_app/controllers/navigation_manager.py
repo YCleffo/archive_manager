@@ -8,12 +8,9 @@ from PySide6.QtCore import QObject, Signal
 class NavigationManager(QObject):
     """Управляет историей навигации."""
 
-    # Сигнал испускается при запросе перехода по пути
-    # Аргументы: path, add_history, clear_forward, scroll_to
     navigate_requested = Signal(Path, bool, bool, object)
 
-    # Сигнал испускается при изменении состояния истории (доступность кнопок назад/вперёд)
-    history_changed = Signal(bool, bool)  # can_go_back, can_go_forward
+    history_changed = Signal(bool, bool)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)

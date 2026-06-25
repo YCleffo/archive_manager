@@ -47,12 +47,9 @@ def main() -> None:
     print(f"Updating version to {version_str} ({commits} commits)")
 
     base_dir = Path(__file__).parent
-
-    # 1. archive_app/__init__.py
     init_path = base_dir / "archive_app" / "__init__.py"
     update_file(init_path, r'__version__\s*=\s*".*?"', f'__version__ = "{version_str}"')
 
-    # 2. packaging/windows/app.manifest
     manifest_path = base_dir / "packaging" / "windows" / "app.manifest"
     update_file(
         manifest_path,
@@ -60,7 +57,6 @@ def main() -> None:
         f'<assemblyIdentity version="{version_win_str}"',
     )
 
-    # 3. packaging/windows/version_info.txt
     version_info_path = base_dir / "packaging" / "windows" / "version_info.txt"
     update_file(
         version_info_path, r"filevers=\(.*?\)", f"filevers=({version_tuple_str})"
