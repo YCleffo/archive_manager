@@ -6,11 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from archive_app.archive_utils import (
-    create_zip_archive,
-    extract_archive,
-    list_archive_members,
-)
+from archive_app.archive_utils import create_zip_archive, extract_archive, list_archive_members
 from archive_app.file_utils import (
     calculate_folder_size,
     create_folder,
@@ -46,9 +42,7 @@ def test_extract_zip_restores_nested_files(tmp_path: Path) -> None:
     extract_archive(archive_path, destination)
 
     assert (destination / "folder" / "file.txt").read_text(encoding="utf-8") == "hello"
-    assert (destination / "folder" / "inner" / "second.txt").read_text(
-        encoding="utf-8"
-    ) == "world"
+    assert (destination / "folder" / "inner" / "second.txt").read_text(encoding="utf-8") == "world"
 
 
 def test_extract_tar_restores_regular_files(tmp_path: Path) -> None:
@@ -62,9 +56,7 @@ def test_extract_tar_restores_regular_files(tmp_path: Path) -> None:
     destination = tmp_path / "out"
     extract_archive(archive_path, destination)
 
-    assert (destination / "safe" / "source.txt").read_text(
-        encoding="utf-8"
-    ) == "tar data"
+    assert (destination / "safe" / "source.txt").read_text(encoding="utf-8") == "tar data"
 
 
 def test_list_directory_hides_dot_files_and_sorts_folders_first(tmp_path: Path) -> None:

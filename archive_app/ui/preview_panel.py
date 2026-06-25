@@ -54,15 +54,9 @@ class PreviewPanel(QFrame):
         self.details_text.setReadOnly(True)
         self.details_text.setFrameShape(QFrame.Shape.NoFrame)
         self.details_text.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-        self.details_text.setWordWrapMode(
-            QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere
-        )
-        self.details_text.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.details_text.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )
+        self.details_text.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+        self.details_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.details_text.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.details_text.setMinimumHeight(150)
         self.details_text.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
@@ -75,9 +69,7 @@ class PreviewPanel(QFrame):
 
         self.open_button = QPushButton("Открыть в стандартной программе", self)
         self.open_button.setObjectName("PreviewOpenButton")
-        make_interactive(
-            self.open_button, "Открыть выбранный файл системной программой"
-        )
+        make_interactive(self.open_button, "Открыть выбранный файл системной программой")
         self.open_button.setEnabled(False)
         layout.addWidget(self.open_button)
 
@@ -119,11 +111,7 @@ class PreviewPanel(QFrame):
             details += f"\n\nПревью: {result.error}"
         self.details_text.setPlainText(details)
 
-        self._current_image = (
-            result.image
-            if result.image is not None and not result.image.isNull()
-            else None
-        )
+        self._current_image = result.image if result.image is not None and not result.image.isNull() else None
         if self._current_image is not None:
             self.image_label.setText("")
             self._update_image_pixmap()

@@ -79,7 +79,9 @@ def _build_image_preview(path: Path, max_size: QSize) -> PreviewResult:
 
     original_size = reader.size()
     if original_size.isValid() and not original_size.isEmpty():
-        scaled_size = original_size.scaled(max_size, Qt.AspectRatioMode.KeepAspectRatio)
+        scaled_size = original_size.scaled(
+            max_size, Qt.AspectRatioMode.KeepAspectRatio
+        )
         reader.setScaledSize(scaled_size)
         dimensions = f"{original_size.width()} × {original_size.height()} px"
     else:
@@ -134,9 +136,7 @@ def _build_info_preview(path: Path, kind: str) -> PreviewResult:
     return PreviewResult(path=path, title=path.name, details=details)
 
 
-def _extract_video_frame(
-    path: Path, max_size: QSize
-) -> tuple[QImage | None, str | None]:
+def _extract_video_frame(path: Path, max_size: QSize) -> tuple[QImage | None, str | None]:
     ffmpeg = _find_ffmpeg()
     if ffmpeg is None:
         return (
@@ -190,15 +190,10 @@ def _extract_video_frame(
 
         image = QImage.fromData(completed.stdout, b"PNG")
         if image.isNull():
-            last_error = (
-                "ffmpeg вернул кадр, но приложение не смогло прочитать картинку."
-            )
+            last_error = "ffmpeg вернул кадр, но приложение не смогло прочитать картинку."
             continue
 
-        if (
-            image.size().width() > max_size.width()
-            or image.size().height() > max_size.height()
-        ):
+        if image.size().width() > max_size.width() or image.size().height() > max_size.height():
             image = image.scaled(
                 max_size,
                 Qt.AspectRatioMode.KeepAspectRatio,

@@ -63,33 +63,36 @@ class ActionBar(QFrame):
     def _more_button(
         self, actions: Mapping[str, QAction], icons: IconFactory
     ) -> QToolButton:
-        menu = QMenu(self)
-        menu.setWindowFlags(
-            menu.windowFlags()
-            | Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.NoDropShadowWindowHint
-        )
-        menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-
-        from PySide6.QtWidgets import QGraphicsDropShadowEffect
-        from PySide6.QtGui import QColor
-
-        shadow = QGraphicsDropShadowEffect(menu)
-        shadow.setBlurRadius(12)
-        shadow.setColor(QColor(0, 0, 0, 40))
-        shadow.setOffset(0, 4)
-        menu.setGraphicsEffect(shadow)
-
-        for key in ("undo", "rename", "zip", "extract", "preview", "size"):
-            menu.addAction(actions[key])
-
         button = QToolButton(self)
         button.setMinimumHeight(32)
         button.setText("Ещё")
         button.setIcon(icons.icon("more"))
         button.setIconSize(QSize(18, 18))
         button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        button.setMenu(menu)
         make_interactive(button, "Показать больше действий")
+
+        def show_menu(_checked: bool = False, owner: QToolButton = button) -> None:
+            self._show_more_menu(owner, actions)
+
+        button.clicked.connect(show_menu)
         return button
+
+    def _show_more_menu(
+        self, button: QToolButton, actions: Mapping[str, QAction]
+    ) -> None:
+        menu = QMenu(button)
+        menu.setObjectName("MoreActionsMenu")
+        menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+
+        for key in ("undo", "rename", "zip", "extract", "preview", "size"):
+            menu.addAction(actions[key])
+
+        button.setDown(True)
+
+        def release_button() -> None:
+            button.setDown(False)
+
+        menu.aboutToHide.connect(release_button)
+        position = button.mapToGlobal(button.rect().bottomLeft())
+        menu.exec(position)
+        button.setDown(False)

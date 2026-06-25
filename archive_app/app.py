@@ -397,9 +397,7 @@ class ArchiveManagerApp(QMainWindow):
             self.preview_panel.set_result(result)
             self.update_selection_status()
 
-        def on_error(
-            error: str, gen: int = generation, preview_path: Path = path
-        ) -> None:
+        def on_error(error: str, gen: int = generation, preview_path: Path = path) -> None:
             if gen != self.preview_generation:
                 return
             fallback = PreviewResult(
@@ -469,13 +467,10 @@ class ArchiveManagerApp(QMainWindow):
             event.type() == QEvent.Type.Show
             and isinstance(watched, QWidget)
             and watched.isWindow()
+            and not isinstance(watched, QMenu)
         ):
             flags = watched.windowFlags()
-            if (
-                (flags & Qt.WindowType.Popup)
-                or (flags & Qt.WindowType.ToolTip)
-                or isinstance(watched, QMenu)
-            ):
+            if flags & Qt.WindowType.ToolTip:
                 from PySide6.QtCore import QTimer
 
                 def fix_pos(w: QWidget = watched) -> None:
@@ -604,9 +599,7 @@ class ArchiveManagerApp(QMainWindow):
                 return
 
             open_in_system(path)
-            self.set_status_with_context(
-                f"Открыто в стандартной программе: {path.name}"
-            )
+            self.set_status_with_context(f"Открыто в стандартной программе: {path.name}")
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка", f"Не удалось открыть:\n{exc}")
 
@@ -874,6 +867,7 @@ class ArchiveManagerApp(QMainWindow):
                 f"Папка: {path.name}\nРазмер: {format_size(total_size)}\nФайлов: {total_files}",
             )
         self.set_status(f"Размер {path.name}: {format_size(total_size)}")
+
 
     def toggle_preview_panel(self) -> None:
         action = self.app_actions["toggle_preview_panel"]
