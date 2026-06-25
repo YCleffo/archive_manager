@@ -4,7 +4,7 @@ import mimetypes
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QResizeEvent
 from PySide6.QtWidgets import (
     QDialog,
@@ -44,39 +44,6 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}
 MAX_TEXT_READ_SIZE = 5 * 1024 * 1024
 
 
-class ImagePreviewLabel(QLabel):
-    def __init__(self, pixmap: QPixmap, scroll_area: QScrollArea) -> None:
-        super().__init__(scroll_area)
-        self._original_pixmap = pixmap
-        self._scroll_area = scroll_area
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setScaledContents(False)
-        self._update_pixmap()
-
-    def resizeEvent(self, event: QResizeEvent) -> None:
-        self._update_pixmap()
-        super().resizeEvent(event)
-
-    def _update_pixmap(self) -> None:
-        if self._original_pixmap.isNull():
-            return
-
-        viewport_size: QSize = self._scroll_area.viewport().size()
-        if (
-            self._original_pixmap.width() > viewport_size.width()
-            or self._original_pixmap.height() > viewport_size.height()
-        ):
-            self.setPixmap(
-                self._original_pixmap.scaled(
-                    viewport_size,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-            )
-        else:
-            self.setPixmap(self._original_pixmap)
-
-
 class PreviewDialog(QDialog):
     def __init__(self, path: Path, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -91,8 +58,8 @@ class PreviewDialog(QDialog):
         try:
             widget = self._create_preview_widget()
             layout.addWidget(widget, 1)
-        except Exception as exc:
-            error_label = QLabel(f"Ошибка чтения файла:\n{exc}")
+        except Exception as e:
+            error_label = QLabel(f"Ошибка чтения файла:\n{e}")
             error_label.setStyleSheet("color: #d32f2f;")
             layout.addWidget(error_label, 1)
 
@@ -118,8 +85,7 @@ class PreviewDialog(QDialog):
         stat = self.path.stat()
         if stat.st_size > MAX_TEXT_READ_SIZE:
             return QLabel(
-                f"Файл слишком велик для текстового просмотра ({stat.st_size} байт).\n"
-                f"Ограничение: {MAX_TEXT_READ_SIZE} байт."
+                f"Файл слишком велик для текстового просмотра ({stat.st_size} байт).\nОграничение: {MAX_TEXT_READ_SIZE} байт."
             )
 
         editor = QPlainTextEdit(self)
@@ -132,10 +98,7 @@ class PreviewDialog(QDialog):
             try:
                 text = self.path.read_text(encoding="windows-1251")
             except UnicodeDecodeError:
-                text = (
-                    "Ошибка кодировки: Не удалось прочитать файл как текст "
-                    "(UTF-8 или Windows-1251)."
-                )
+                text = "Ошибка кодировки: Не удалось прочитать файл как текст (UTF-8 или Windows-1251)."
 
         editor.setPlainText(text)
         return editor
@@ -145,11 +108,33 @@ class PreviewDialog(QDialog):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
 
+        label = QLabel(scroll)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         pixmap = QPixmap(str(self.path))
         if pixmap.isNull():
             return QLabel("Ошибка загрузки изображения.")
 
-        label = ImagePreviewLabel(pixmap, scroll)
+        label.setPixmap(pixmap)
+        label.setScaledContents(False)
+
+        def resize_event(event: QResizeEvent) -> None:
+            if not pixmap.isNull():
+                size = scroll.viewport().size()
+                if pixmap.width() > size.width() or pixmap.height() > size.height():
+                    label.setPixmap(
+                        pixmap.scaled(
+                            size,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation,
+                        )
+                    )
+                else:
+                    label.setPixmap(pixmap)
+            QLabel.resizeEvent(label, event)
+
+        label.resizeEvent = resize_event
+
         scroll.setWidget(label)
         return scroll
 

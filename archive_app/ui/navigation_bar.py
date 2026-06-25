@@ -82,7 +82,13 @@ class PathBar(QFrame):
         popup = self.completer.popup()
         if popup is not None:
             popup.setObjectName("PathCompleterPopup")
-            popup.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            popup.setWindowFlags(
+                Qt.WindowType.Popup
+                | Qt.WindowType.FramelessWindowHint
+                | Qt.WindowType.NoDropShadowWindowHint
+            )
+            popup.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
+            popup.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         self.path_edit.textEdited.connect(self.completer.update_suggestions)
 
         layout.addWidget(self.path_edit, 1)
@@ -105,7 +111,7 @@ class PathBar(QFrame):
         browse_button.setIconSize(QSize(14, 14))
         browse_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         browse_button.clicked.connect(self.browse_requested.emit)
-        make_interactive(browse_button, "Выбрать папку во внутреннем окне программы")
+        make_interactive(browse_button, "Выбрать папку через системный диалог")
 
         buttons_wrap = QWidget(self)
         buttons_layout = QHBoxLayout(buttons_wrap)

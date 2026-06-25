@@ -285,6 +285,41 @@ QListView#PathCompleterPopup::item:selected {
     background: #edf4ff;
     color: #172033;
 }
+QFrame#PreviewPanel {
+    background: #ffffff;
+    border: 1px solid #d8e0ea;
+    border-radius: 10px;
+}
+
+QLabel#PreviewPanelTitle {
+    color: #273548;
+    font-size: 13pt;
+    font-weight: 700;
+}
+
+QLabel#PreviewImage {
+    background: #f8fafc;
+    border: 1px dashed #cfd8e3;
+    border-radius: 10px;
+    color: #667385;
+    padding: 10px;
+}
+
+QLabel#PreviewName {
+    color: #152033;
+    font-size: 11pt;
+    font-weight: 700;
+}
+
+QLabel#PreviewDetails {
+    color: #4b5563;
+    line-height: 140%;
+}
+
+QPushButton#PreviewOpenButton {
+    min-height: 34px;
+}
+
 """
 
 
