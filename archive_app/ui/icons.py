@@ -105,9 +105,17 @@ class IconFactory:
             painter.drawLine(p(6, 6), p(14, 14))
             painter.drawLine(p(14, 6), p(6, 14))
         elif name == "reset":
-            painter.drawArc(r(4, 4, 12, 12), 35 * 16, 260 * 16)
-            painter.drawLine(p(6.4, 13.5), p(4.4, 16))
-            painter.drawLine(p(6.4, 13.5), p(8.9, 15.2))
+            eraser = QPainterPath()
+            eraser.moveTo(p(4.2, 13.4))
+            eraser.lineTo(p(11.3, 6.3))
+            eraser.lineTo(p(15.8, 10.8))
+            eraser.lineTo(p(9.1, 17.2))
+            eraser.lineTo(p(6.0, 17.2))
+            eraser.lineTo(p(4.2, 15.4))
+            eraser.closeSubpath()
+            painter.drawPath(eraser)
+            painter.drawLine(p(8.3, 9.3), p(12.8, 13.8))
+            painter.drawLine(p(10.8, 17.2), p(16.2, 17.2))
         elif name == "more":
             painter.setBrush(QColor(color))
             for x in (6.2, 10, 13.8):
