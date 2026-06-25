@@ -7,6 +7,7 @@ from typing import cast
 from PySide6.QtCore import (
     QAbstractItemModel,
     QEvent,
+    QObject,
     QRect,
     QModelIndex,
     QPersistentModelIndex,
@@ -196,6 +197,7 @@ class FileTable(QTableWidget):
         )
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
+        self.viewport().installEventFilter(self)
 
         def on_cell_double_clicked(_row: int, _column: int) -> None:
             self.open_requested.emit()
@@ -296,29 +298,20 @@ class FileTable(QTableWidget):
                 size_item.setData(SIZE_PATH_ROLE, None)
                 return
 
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        index = self.indexAt(event.position().toPoint())
-        self._set_hovered_row(index.row() if index.isValid() else -1)
-        super().mouseMoveEvent(event)
-
-    def viewportEvent(self, event: QEvent) -> bool:
-        if event.type() == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
-            index = self.indexAt(event.position().toPoint())
-            self._set_hovered_row(index.row() if index.isValid() else -1)
-        elif event.type() == QEvent.Type.HoverMove:
-            pos = getattr(event, "position", None)
-            if callable(pos):
-                point = pos()
-                if isinstance(point, QPointF):
-                    index = self.indexAt(point.toPoint())
-                    self._set_hovered_row(index.row() if index.isValid() else -1)
-        elif event.type() == QEvent.Type.Leave:
-            self._set_hovered_row(-1)
-        return super().viewportEvent(event)
-
-    def leaveEvent(self, event: QEvent) -> None:
-        self._set_hovered_row(-1)
-        super().leaveEvent(event)
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched == self.viewport():
+            if event.type() == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
+                row = self.rowAt(int(event.position().y()))
+                self._set_hovered_row(row)
+            elif event.type() == QEvent.Type.HoverMove:
+                pos = getattr(event, "position", None)
+                if callable(pos):
+                    point = pos()
+                    if isinstance(point, QPointF):
+                        self._set_hovered_row(self.rowAt(int(point.y())))
+            elif event.type() == QEvent.Type.Leave:
+                self._set_hovered_row(-1)
+        return super().eventFilter(watched, event)
 
     def _on_cell_entered(self, row: int, _column: int) -> None:
         self._set_hovered_row(row)
@@ -336,10 +329,12 @@ class FileTable(QTableWidget):
     def _update_row_hover(self, row: int, active: bool) -> None:
         if row < 0 or row >= self.rowCount():
             return
+        brush = QBrush(HOVER_ROW_COLOR) if active else QBrush()
         for column in range(self.columnCount()):
             item = self.item(row, column)
             if item is not None:
                 item.setData(HOVER_ROLE, active)
+                item.setBackground(brush)
         top_left = self.model().index(row, 0)
         bottom_right = self.model().index(row, self.columnCount() - 1)
         self.viewport().update(self.visualRect(top_left).united(self.visualRect(bottom_right)))
@@ -368,7 +363,7 @@ class SearchResultsTable(QTableWidget):
         for column in range(1, 5):
             self.horizontalHeader().setSectionResizeMode(
                 column, QHeaderView.ResizeMode.ResizeToContents
-            )
+        )
         set_header_alignments(
             self,
             {
@@ -379,6 +374,7 @@ class SearchResultsTable(QTableWidget):
                 4: Qt.AlignmentFlag.AlignLeft,
             },
         )
+        self.viewport().installEventFilter(self)
 
         def on_search_cell_double_clicked(_row: int, _column: int) -> None:
             self.open_requested.emit()
@@ -445,29 +441,20 @@ class SearchResultsTable(QTableWidget):
             return
         super().keyPressEvent(event)
 
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        index = self.indexAt(event.position().toPoint())
-        self._set_hovered_row(index.row() if index.isValid() else -1)
-        super().mouseMoveEvent(event)
-
-    def viewportEvent(self, event: QEvent) -> bool:
-        if event.type() == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
-            index = self.indexAt(event.position().toPoint())
-            self._set_hovered_row(index.row() if index.isValid() else -1)
-        elif event.type() == QEvent.Type.HoverMove:
-            pos = getattr(event, "position", None)
-            if callable(pos):
-                point = pos()
-                if isinstance(point, QPointF):
-                    index = self.indexAt(point.toPoint())
-                    self._set_hovered_row(index.row() if index.isValid() else -1)
-        elif event.type() == QEvent.Type.Leave:
-            self._set_hovered_row(-1)
-        return super().viewportEvent(event)
-
-    def leaveEvent(self, event: QEvent) -> None:
-        self._set_hovered_row(-1)
-        super().leaveEvent(event)
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched == self.viewport():
+            if event.type() == QEvent.Type.MouseMove and isinstance(event, QMouseEvent):
+                row = self.rowAt(int(event.position().y()))
+                self._set_hovered_row(row)
+            elif event.type() == QEvent.Type.HoverMove:
+                pos = getattr(event, "position", None)
+                if callable(pos):
+                    point = pos()
+                    if isinstance(point, QPointF):
+                        self._set_hovered_row(self.rowAt(int(point.y())))
+            elif event.type() == QEvent.Type.Leave:
+                self._set_hovered_row(-1)
+        return super().eventFilter(watched, event)
 
     def _on_cell_entered(self, row: int, _column: int) -> None:
         self._set_hovered_row(row)
@@ -485,10 +472,12 @@ class SearchResultsTable(QTableWidget):
     def _update_row_hover(self, row: int, active: bool) -> None:
         if row < 0 or row >= self.rowCount():
             return
+        brush = QBrush(HOVER_ROW_COLOR) if active else QBrush()
         for column in range(self.columnCount()):
             item = self.item(row, column)
             if item is not None:
                 item.setData(HOVER_ROLE, active)
+                item.setBackground(brush)
         top_left = self.model().index(row, 0)
         bottom_right = self.model().index(row, self.columnCount() - 1)
         self.viewport().update(self.visualRect(top_left).united(self.visualRect(bottom_right)))

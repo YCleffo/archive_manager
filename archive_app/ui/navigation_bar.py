@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -40,14 +40,20 @@ class PathBar(QFrame):
         go_button.setIcon(icons.icon("open"))
         go_button.clicked.connect(self._emit_navigate)
         make_interactive(go_button, "Открыть папку из строки пути")
-        layout.addWidget(go_button)
 
         browse_button = QPushButton("Обзор", self)
         browse_button.setMinimumHeight(32)
         browse_button.setIcon(icons.icon("folder"))
         browse_button.clicked.connect(self.browse_requested.emit)
         make_interactive(browse_button, "Выбрать папку через системный диалог")
-        layout.addWidget(browse_button)
+
+        buttons_wrap = QWidget(self)
+        buttons_layout = QHBoxLayout(buttons_wrap)
+        buttons_layout.setContentsMargins(0, 4, 0, 0)
+        buttons_layout.setSpacing(10)
+        buttons_layout.addWidget(go_button)
+        buttons_layout.addWidget(browse_button)
+        layout.addWidget(buttons_wrap, alignment=Qt.AlignmentFlag.AlignBottom)
 
     def set_path(self, path: str) -> None:
         self.path_edit.setText(path)
