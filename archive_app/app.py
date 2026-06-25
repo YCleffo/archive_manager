@@ -31,8 +31,8 @@ class ArchiveManagerApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Python Archive Manager")
-        self.geometry("1120x720")
-        self.minsize(900, 560)
+        self.geometry("1440x900")
+        self.minsize(1024, 768)
 
         self.current_path = Path.home().resolve()
         self.history: list[Path] = []
