@@ -156,9 +156,8 @@ class FileTable(QTableWidget):
         wrapper = QWidget(self)
         wrapper.setStyleSheet("background: transparent;")
         layout = QHBoxLayout(wrapper)
-        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(0)
-        layout.addStretch(1)
 
         button = QPushButton("Посчитать", wrapper)
         button.setObjectName("SizeButton")
@@ -170,7 +169,7 @@ class FileTable(QTableWidget):
             self.size_requested.emit(requested_path)
 
         button.clicked.connect(on_clicked)
-        layout.addWidget(button)
+        layout.addWidget(button, alignment=Qt.AlignmentFlag.AlignCenter)
         self.setCellWidget(row, 2, wrapper)
 
     def _show_context_menu(self, pos: QPoint) -> None:
