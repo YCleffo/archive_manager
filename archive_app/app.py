@@ -5,35 +5,9 @@ import threading
 from pathlib import Path
 from typing import Any, Callable
 
-from PySide6.QtCore import QFileInfo, QObject, QRunnable, QSize, Qt, QThreadPool, Signal, Slot, QPoint
+from PySide6.QtCore import QPoint, QRunnable, QThreadPool
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QApplication,
-    QCheckBox,
-    QDialog,
-    QDialogButtonBox,
-    QFileDialog,
-    QFileIconProvider,
-    QFrame,
-    QHBoxLayout,
-    QHeaderView,
-    QInputDialog,
-    QLabel,
-    QLineEdit,
-    QMainWindow,
-    QMenu,
-    QMessageBox,
-    QPushButton,
-    QSizePolicy,
-    QSplitter,
-    QStyle,
-    QTableWidget,
-    QTableWidgetItem,
-    QTextEdit,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QVBoxLayout, QWidget
 
 from .archive_utils import create_zip_archive, extract_archive, is_supported_archive, list_archive_members
 from .file_utils import (
@@ -41,7 +15,6 @@ from .file_utils import (
     copy_items,
     create_folder,
     delete_items,
-    format_modified,
     format_size,
     list_directory,
     move_items,
@@ -49,444 +22,103 @@ from .file_utils import (
     rename_item,
 )
 from .search_utils import SearchResult, search_files
-
-SORT_ROLE = Qt.ItemDataRole.UserRole
-PATH_ROLE = Qt.ItemDataRole.UserRole + 1
-
-
-class SortableTableWidgetItem(QTableWidgetItem):
-    def __lt__(self, other: QTableWidgetItem) -> bool:
-        left = self.data(SORT_ROLE)
-        right = other.data(SORT_ROLE)
-        if isinstance(left, (int, float)) and isinstance(right, (int, float)):
-            return left < right
-        return str(left if left is not None else self.text()).casefold() < str(
-            right if right is not None else other.text()
-        ).casefold()
-
-
-class OperationSignals(QObject):
-    status = Signal(str)
-    result = Signal(object)
-    error = Signal(str)
-    finished = Signal()
-
-
-class OperationWorker(QRunnable):
-    def __init__(self, callback: Callable[[Callable[[str], None]], Any]) -> None:
-        super().__init__()
-        self.callback = callback
-        self.signals = OperationSignals()
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            result = self.callback(self.signals.status.emit)
-            self.signals.result.emit(result)
-        except Exception as exc:
-            self.signals.error.emit(str(exc))
-        finally:
-            self.signals.finished.emit()
-
-
-class SearchSignals(QObject):
-    result = Signal(object)
-    error = Signal(str)
-    finished = Signal(bool)
-
-
-class SearchWorker(QRunnable):
-    def __init__(
-        self,
-        root: Path,
-        query: str,
-        extensions_raw: str,
-        include_content: bool,
-        cancel_event: threading.Event,
-    ) -> None:
-        super().__init__()
-        self.root = root
-        self.query = query
-        self.extensions_raw = extensions_raw
-        self.include_content = include_content
-        self.cancel_event = cancel_event
-        self.signals = SearchSignals()
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            for result in search_files(
-                self.root,
-                query=self.query,
-                extensions_raw=self.extensions_raw,
-                include_content=self.include_content,
-                cancel_event=self.cancel_event,
-            ):
-                self.signals.result.emit(result)
-            self.signals.finished.emit(self.cancel_event.is_set())
-        except Exception as exc:
-            self.signals.error.emit(str(exc))
-
-
-class ArchivePreviewDialog(QDialog):
-    def __init__(self, parent: QWidget, archive_name: str, text: str) -> None:
-        super().__init__(parent)
-        self.setWindowTitle(f"Содержимое архива - {archive_name}")
-        self.resize(820, 560)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 14, 14, 14)
-        layout.setSpacing(10)
-
-        preview = QTextEdit(self)
-        preview.setReadOnly(True)
-        preview.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
-        preview.setPlainText(text)
-        layout.addWidget(preview)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, self)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+from .ui.action_bar import ActionBar
+from .ui.dialogs import ArchivePreviewDialog
+from .ui.icons import IconFactory
+from .ui.navigation_bar import PathBar
+from .ui.search_panel import SearchPanel
+from .ui.tables import FileTable
+from .ui.theme import APP_STYLESHEET
+from .ui.workers import OperationWorker, SearchWorker
 
 
 class ArchiveManagerApp(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Archive Manager")
-        self.resize(1440, 900)
-        self.setMinimumSize(1024, 720)
+        self.resize(1360, 820)
+        self.setMinimumSize(1040, 680)
 
+        self.icons = IconFactory()
         self.current_path = Path.home().resolve()
         self.history: list[Path] = []
         self.search_cancel_event: threading.Event | None = None
         self.thread_pool = QThreadPool.globalInstance()
         self.workers: list[QRunnable] = []
-        self.icon_provider = QFileIconProvider()
 
-        self._apply_style()
-        self._build_toolbar()
-        self._build_central_area()
-        self._bind_shortcuts()
+        self.setStyleSheet(APP_STYLESHEET)
+        self.app_actions = self._create_actions()
+        self._build_layout()
 
         self.load_directory(self.current_path, add_history=False)
 
-    def _standard_icon(self, icon: QStyle.StandardPixmap) -> Any:
-        return self.style().standardIcon(icon)
+    def _create_actions(self) -> dict[str, QAction]:
+        specs: list[tuple[str, str, str, str, Callable[[], None], str | None]] = [
+            ("open", "Открыть", "open", "Открыть выбранный файл или папку", self.open_selected, None),
+            ("back", "Назад", "back", "Вернуться к предыдущей папке (Alt+Left)", self.go_back, "Alt+Left"),
+            ("up", "Вверх", "up", "Перейти на уровень выше (Alt+Up)", self.go_up, "Alt+Up"),
+            ("home", "Домой", "home", "Открыть домашнюю папку (Alt+Home)", self.go_home, "Alt+Home"),
+            ("refresh", "Обновить", "refresh", "Перезагрузить список файлов (F5)", self.refresh, "F5"),
+            ("search", "Поиск", "search", "Показать или скрыть панель поиска файлов (Ctrl+F)", self.toggle_search_panel, "Ctrl+F"),
+            ("new_folder", "Новая папка", "new-folder", "Создать новую папку в текущем каталоге", self.new_folder, None),
+            ("copy", "Копировать", "copy", "Скопировать выбранные объекты", self.copy_selected, None),
+            ("move", "Переместить", "move", "Переместить выбранные объекты", self.move_selected, None),
+            ("delete", "Удалить", "delete", "Удалить выбранные объекты без корзины (Delete в таблице)", self.delete_selected, None),
+            ("rename", "Переименовать", "rename", "Переименовать выбранный объект (F2 в таблице)", self.rename_selected, None),
+            ("zip", "Создать ZIP", "zip", "Создать ZIP-архив из выбранных объектов", self.create_zip_from_selection, None),
+            ("extract", "Распаковать", "extract", "Распаковать выбранный архив", self.extract_selected_archive, None),
+            ("preview", "Содержимое", "preview", "Показать содержимое выбранного архива", self.show_archive_contents, None),
+            ("size", "Размер папки", "size", "Посчитать размер выбранной папки", self.calculate_selected_size, None),
+        ]
 
-    def _apply_style(self) -> None:
-        self.setStyleSheet(
-            """
-            QMainWindow, QWidget {
-                background: #f4f6f9;
-                color: #1f2933;
-                font-family: "Segoe UI";
-                font-size: 10pt;
-            }
+        actions: dict[str, QAction] = {}
+        for key, text, icon_name, tooltip, callback, shortcut in specs:
+            action = QAction(self.icons.icon(icon_name), text, self)
+            action.setToolTip(tooltip)
+            action.setStatusTip(tooltip)
+            if shortcut:
+                action.setShortcut(QKeySequence(shortcut))
+            def on_triggered(_checked: bool = False, cb: Callable[[], None] = callback) -> None:
+                cb()
+            action.triggered.connect(on_triggered)
+            self.addAction(action)
+            actions[key] = action
+        return actions
 
-            QToolBar {
-                background: #ffffff;
-                border: 0;
-                border-bottom: 1px solid #d7dde6;
-                padding: 6px;
-                spacing: 5px;
-            }
-
-            QToolButton, QPushButton {
-                background: #ffffff;
-                border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 6px 10px;
-            }
-
-            QToolButton:hover, QPushButton:hover {
-                background: #eef6ff;
-                border-color: #7aa7da;
-            }
-
-            QToolButton:pressed, QPushButton:pressed {
-                background: #dbeafe;
-            }
-
-            QLineEdit {
-                background: #ffffff;
-                border: 1px solid #cbd5e1;
-                border-radius: 6px;
-                padding: 7px 9px;
-                selection-background-color: #2563eb;
-            }
-
-            QCheckBox {
-                spacing: 7px;
-            }
-
-            QTableWidget {
-                background: #ffffff;
-                alternate-background-color: #f7f9fc;
-                border: 1px solid #d7dde6;
-                border-radius: 6px;
-                gridline-color: #e7ebf0;
-                selection-background-color: #2563eb;
-                selection-color: #ffffff;
-            }
-
-            QHeaderView::section {
-                background: #edf2f7;
-                border: 0;
-                border-right: 1px solid #d7dde6;
-                border-bottom: 1px solid #d7dde6;
-                padding: 7px 8px;
-                font-weight: 600;
-            }
-
-            QSplitter::handle {
-                background: #d7dde6;
-                height: 6px;
-            }
-
-            QStatusBar {
-                background: #ffffff;
-                border-top: 1px solid #d7dde6;
-            }
-
-            QFrame#PathBar, QFrame#SearchPanel {
-                background: #f4f6f9;
-                border: 0;
-            }
-            """
-        )
-
-    def _build_toolbar(self) -> None:
-        toolbar = self.addToolBar("Действия")
-        toolbar.setMovable(False)
-        toolbar.setIconSize(QSize(18, 18))
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-
-        self._add_toolbar_action(
-            toolbar,
-            "Назад",
-            QStyle.StandardPixmap.SP_ArrowBack,
-            self.go_back,
-            "Alt+Left",
-        )
-        self._add_toolbar_action(
-            toolbar,
-            "Вверх",
-            QStyle.StandardPixmap.SP_FileDialogToParent,
-            self.go_up,
-            "Alt+Up",
-        )
-        self._add_toolbar_action(
-            toolbar,
-            "Домой",
-            QStyle.StandardPixmap.SP_DirHomeIcon,
-            self.go_home,
-            "Alt+Home",
-        )
-        self._add_toolbar_action(
-            toolbar,
-            "Обновить",
-            QStyle.StandardPixmap.SP_BrowserReload,
-            self.refresh,
-            "F5",
-        )
-        toolbar.addSeparator()
-        self._add_toolbar_action(
-            toolbar,
-            "Новая папка",
-            QStyle.StandardPixmap.SP_FileDialogNewFolder,
-            self.new_folder,
-        )
-        self._add_toolbar_action(
-            toolbar,
-            "Переименовать",
-            QStyle.StandardPixmap.SP_FileDialogDetailedView,
-            self.rename_selected,
-            "F2",
-        )
-        self._add_toolbar_action(
-            toolbar,
-            "Удалить",
-            QStyle.StandardPixmap.SP_TrashIcon,
-            self.delete_selected,
-            "Delete",
-        )
-        self._add_toolbar_action(
-            toolbar,
-            "Копировать",
-            QStyle.StandardPixmap.SP_DialogSaveButton,
-            self.copy_selected,
-            "Ctrl+C",
-        )
-        self._add_toolbar_action(
-            toolbar,
-            "Переместить",
-            QStyle.StandardPixmap.SP_ArrowForward,
-            self.move_selected,
-            "Ctrl+X",
-        )
-        toolbar.addSeparator()
-        self._add_toolbar_action(
-            toolbar,
-            "Создать ZIP",
-            QStyle.StandardPixmap.SP_DriveHDIcon,
-            self.create_zip_from_selection,
-        )
-        self._add_toolbar_action(
-            toolbar,
-            "Распаковать",
-            QStyle.StandardPixmap.SP_DialogOpenButton,
-            self.extract_selected_archive,
-        )
-        self._add_toolbar_action(
-            toolbar,
-            "Размер папки",
-            QStyle.StandardPixmap.SP_FileDialogInfoView,
-            self.calculate_selected_size,
-        )
-
-    def _add_toolbar_action(
-        self,
-        toolbar: Any,
-        text: str,
-        icon: QStyle.StandardPixmap,
-        callback: Callable[[], None],
-        shortcut: str | None = None,
-    ) -> QAction:
-        action = QAction(self._standard_icon(icon), text, self)
-        if shortcut:
-            action.setShortcut(QKeySequence(shortcut))
-            action.setToolTip(f"{text} ({shortcut})")
-        else:
-            action.setToolTip(text)
-        def on_triggered(_checked: bool = False, cb: Callable[[], None] = callback) -> None:
-            cb()
-        action.triggered.connect(on_triggered)
-        toolbar.addAction(action)
-        return action
-
-    def _build_central_area(self) -> None:
+    def _build_layout(self) -> None:
         central = QWidget(self)
         layout = QVBoxLayout(central)
-        layout.setContentsMargins(10, 8, 10, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(16, 14, 16, 10)
+        layout.setSpacing(12)
 
-        path_bar = QFrame(central)
-        path_bar.setObjectName("PathBar")
-        path_layout = QHBoxLayout(path_bar)
-        path_layout.setContentsMargins(0, 0, 0, 0)
-        path_layout.setSpacing(8)
+        self.action_bar = ActionBar(self.app_actions, self.icons, central)
+        layout.addWidget(self.action_bar)
 
-        path_layout.addWidget(QLabel("Путь:", path_bar))
-        self.path_edit = QLineEdit(path_bar)
-        self.path_edit.returnPressed.connect(self.navigate_from_entry)
-        path_layout.addWidget(self.path_edit, 1)
+        self.path_bar = PathBar(self.icons, central)
+        def on_navigate_requested(path_str: str) -> None:
+            self.load_directory(Path(path_str))
+        self.path_bar.navigate_requested.connect(on_navigate_requested)
+        self.path_bar.browse_requested.connect(self.choose_directory)
+        layout.addWidget(self.path_bar)
 
-        go_button = QPushButton("Перейти", path_bar)
-        go_button.setIcon(self._standard_icon(QStyle.StandardPixmap.SP_DialogOpenButton))
-        go_button.clicked.connect(self.navigate_from_entry)
-        path_layout.addWidget(go_button)
+        self.file_table = FileTable(self.icons, central)
+        self.file_table.open_requested.connect(self.open_selected)
+        self.file_table.delete_requested.connect(self.delete_selected)
+        self.file_table.rename_requested.connect(self.rename_selected)
+        self.file_table.context_menu_requested.connect(self.show_file_context_menu)
+        layout.addWidget(self.file_table, 1)
 
-        choose_button = QPushButton("Обзор", path_bar)
-        choose_button.setIcon(self._standard_icon(QStyle.StandardPixmap.SP_DirOpenIcon))
-        choose_button.clicked.connect(self.choose_directory)
-        path_layout.addWidget(choose_button)
-        layout.addWidget(path_bar)
-
-        splitter = QSplitter(Qt.Orientation.Vertical, central)
-        splitter.addWidget(self._build_file_table())
-        splitter.addWidget(self._build_search_panel())
-        splitter.setStretchFactor(0, 4)
-        splitter.setStretchFactor(1, 2)
-        splitter.setSizes([560, 260])
-        layout.addWidget(splitter, 1)
+        self.search_panel = SearchPanel(self.icons, central)
+        self.search_panel.start_requested.connect(self.start_search)
+        self.search_panel.stop_requested.connect(self.stop_search)
+        self.search_panel.reset_requested.connect(self.reset_search_panel)
+        self.search_panel.close_requested.connect(self.hide_search_panel)
+        self.search_panel.open_result_requested.connect(self.open_search_result)
+        self.search_panel.hide()
+        layout.addWidget(self.search_panel)
 
         self.setCentralWidget(central)
         self.statusBar().showMessage("Готово")
-
-    def _build_file_table(self) -> QTableWidget:
-        self.file_table = QTableWidget(0, 4, self)
-        self.file_table.setHorizontalHeaderLabels(["Имя", "Тип", "Размер", "Изменён"])
-        self.file_table.setAlternatingRowColors(True)
-        self.file_table.setSortingEnabled(True)
-        self.file_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.file_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.file_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.file_table.setShowGrid(False)
-        self.file_table.verticalHeader().setVisible(False)
-        self.file_table.verticalHeader().setDefaultSectionSize(34)
-        self.file_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.file_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.file_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        self.file_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self.file_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.file_table.customContextMenuRequested.connect(self.show_file_context_menu)
-        def on_file_double_clicked(_row: int, _column: int) -> None:
-            self.open_selected()
-        self.file_table.cellDoubleClicked.connect(on_file_double_clicked)
-        return self.file_table
-
-    def _build_search_panel(self) -> QWidget:
-        panel = QFrame(self)
-        panel.setObjectName("SearchPanel")
-        layout = QVBoxLayout(panel)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
-
-        search_bar = QHBoxLayout()
-        search_bar.setSpacing(8)
-
-        search_bar.addWidget(QLabel("Поиск:", panel))
-        self.search_edit = QLineEdit(panel)
-        self.search_edit.setPlaceholderText("Имя файла или текст внутри файла")
-        self.search_edit.returnPressed.connect(self.start_search)
-        search_bar.addWidget(self.search_edit, 1)
-
-        search_bar.addWidget(QLabel("Расширения:", panel))
-        self.extensions_edit = QLineEdit(panel)
-        self.extensions_edit.setPlaceholderText("py, txt, md")
-        self.extensions_edit.setMaximumWidth(170)
-        search_bar.addWidget(self.extensions_edit)
-
-        self.content_checkbox = QCheckBox("Искать внутри файлов", panel)
-        search_bar.addWidget(self.content_checkbox)
-
-        find_button = QPushButton("Найти", panel)
-        find_button.setIcon(self._standard_icon(QStyle.StandardPixmap.SP_DialogOkButton))
-        find_button.clicked.connect(self.start_search)
-        search_bar.addWidget(find_button)
-
-        stop_button = QPushButton("Стоп", panel)
-        stop_button.setIcon(self._standard_icon(QStyle.StandardPixmap.SP_BrowserStop))
-        stop_button.clicked.connect(self.stop_search)
-        search_bar.addWidget(stop_button)
-        layout.addLayout(search_bar)
-
-        self.search_table = QTableWidget(0, 5, panel)
-        self.search_table.setHorizontalHeaderLabels(["Результат", "Совпадение", "Тип", "Размер", "Изменён"])
-        self.search_table.setAlternatingRowColors(True)
-        self.search_table.setSortingEnabled(True)
-        self.search_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.search_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.search_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.search_table.setShowGrid(False)
-        self.search_table.verticalHeader().setVisible(False)
-        self.search_table.verticalHeader().setDefaultSectionSize(32)
-        self.search_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for column in range(1, 5):
-            self.search_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
-        def on_search_double_clicked(_row: int, _column: int) -> None:
-            self.open_search_result()
-        self.search_table.cellDoubleClicked.connect(on_search_double_clicked)
-        layout.addWidget(self.search_table, 1)
-
-        panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        return panel
-
-    def _bind_shortcuts(self) -> None:
-        open_action = QAction(self)
-        open_action.setShortcut(QKeySequence("Return"))
-        open_action.triggered.connect(self.open_selected)
-        self.addAction(open_action)
 
     def set_status(self, text: str) -> None:
         self.statusBar().showMessage(text)
@@ -499,49 +131,16 @@ class ArchiveManagerApp(QMainWindow):
             if add_history and path != self.current_path:
                 self.history.append(self.current_path)
             self.current_path = path
-            self.path_edit.setText(str(path))
+            self.path_bar.set_path(str(path))
             entries = list_directory(path)
-
-            self.file_table.setSortingEnabled(False)
-            self.file_table.setRowCount(0)
-            for entry in entries:
-                self.insert_file_entry(entry)
-            self.file_table.setSortingEnabled(True)
-            self.file_table.sortItems(0, Qt.SortOrder.AscendingOrder)
+            self.file_table.set_entries(entries)
             self.set_status(f"Открыто: {path} | объектов: {len(entries)}")
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка", f"Не удалось открыть папку:\n{exc}")
             self.set_status("Ошибка открытия папки")
 
-    def insert_file_entry(self, entry: Any) -> None:
-        row = self.file_table.rowCount()
-        self.file_table.insertRow(row)
-
-        name_item = SortableTableWidgetItem(entry.name)
-        name_item.setIcon(self.icon_provider.icon(QFileInfo(str(entry.path))))
-        name_item.setData(SORT_ROLE, f"{0 if entry.is_dir else 1}|{entry.name.casefold()}")
-        name_item.setData(PATH_ROLE, str(entry.path))
-
-        kind_item = SortableTableWidgetItem(entry.kind)
-        kind_item.setData(SORT_ROLE, entry.kind.casefold())
-
-        size_item = SortableTableWidgetItem(format_size(entry.size))
-        size_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        size_item.setData(SORT_ROLE, -1 if entry.size is None else entry.size)
-
-        modified_item = SortableTableWidgetItem(format_modified(entry.modified))
-        modified_item.setData(SORT_ROLE, 0 if entry.modified is None else entry.modified.timestamp())
-
-        self.file_table.setItem(row, 0, name_item)
-        self.file_table.setItem(row, 1, kind_item)
-        self.file_table.setItem(row, 2, size_item)
-        self.file_table.setItem(row, 3, modified_item)
-
     def refresh(self) -> None:
         self.load_directory(self.current_path, add_history=False)
-
-    def navigate_from_entry(self) -> None:
-        self.load_directory(Path(self.path_edit.text()))
 
     def choose_directory(self) -> None:
         selected = QFileDialog.getExistingDirectory(self, "Выберите папку", str(self.current_path))
@@ -564,13 +163,7 @@ class ArchiveManagerApp(QMainWindow):
         self.load_directory(previous, add_history=False)
 
     def get_selected_paths(self) -> list[Path]:
-        rows = sorted({index.row() for index in self.file_table.selectionModel().selectedRows()})
-        paths: list[Path] = []
-        for row in rows:
-            item = self.file_table.item(row, 0)
-            if item is not None:
-                paths.append(Path(item.data(PATH_ROLE)))
-        return paths
+        return self.file_table.selected_paths()
 
     def get_selected_path(self) -> Path | None:
         paths = self.get_selected_paths()
@@ -768,28 +361,43 @@ class ArchiveManagerApp(QMainWindow):
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка", f"Не удалось прочитать архив:\n{exc}")
 
+    def toggle_search_panel(self) -> None:
+        if self.search_panel.isVisible():
+            self.hide_search_panel()
+        else:
+            self.search_panel.show()
+            self.search_panel.focus_query()
+            self.set_status("Панель поиска открыта")
+
+    def hide_search_panel(self) -> None:
+        self.stop_search(silent=True)
+        self.search_panel.hide()
+        self.set_status("Панель поиска скрыта")
+
+    def reset_search_panel(self) -> None:
+        self.stop_search(silent=True)
+        self.search_panel.reset()
+        self.set_status("Поиск сброшен")
+
     def start_search(self) -> None:
-        query = self.search_edit.text().strip()
+        query = self.search_panel.query()
         if not query:
             QMessageBox.information(self, "Поиск", "Введите запрос")
             return
         self.stop_search(silent=True)
-        self.search_table.setSortingEnabled(False)
-        self.search_table.setRowCount(0)
-        self.search_table.setSortingEnabled(True)
+        self.search_panel.clear_results()
 
         self.search_cancel_event = threading.Event()
         worker = SearchWorker(
-            self.current_path,
+            search_function=search_files,
+            root=self.current_path,
             query=query,
-            extensions_raw=self.extensions_edit.text(),
-            include_content=self.content_checkbox.isChecked(),
+            extensions_raw=self.search_panel.extensions(),
+            include_content=self.search_panel.include_content(),
             cancel_event=self.search_cancel_event,
         )
         worker.signals.result.connect(self.insert_search_result)
-        def on_search_error(error_msg: str) -> None:
-            self._show_search_error(error_msg)
-        worker.signals.error.connect(on_search_error)
+        worker.signals.error.connect(self._show_search_error)
         worker.signals.finished.connect(self._search_finished)
         self._track_worker(worker)
         self.thread_pool.start(worker)
@@ -802,42 +410,13 @@ class ArchiveManagerApp(QMainWindow):
                 self.set_status("Поиск остановлен")
 
     def insert_search_result(self, result: SearchResult) -> None:
-        sorting = self.search_table.isSortingEnabled()
-        self.search_table.setSortingEnabled(False)
-
-        row = self.search_table.rowCount()
-        self.search_table.insertRow(row)
-
-        path_item = SortableTableWidgetItem(str(result.path))
-        path_item.setIcon(self.icon_provider.icon(QFileInfo(str(result.path))))
-        path_item.setData(SORT_ROLE, str(result.path).casefold())
-        path_item.setData(PATH_ROLE, str(result.path))
-
-        match_item = SortableTableWidgetItem(result.match_type)
-        match_item.setData(SORT_ROLE, result.match_type)
-
-        kind_item = SortableTableWidgetItem(result.kind)
-        kind_item.setData(SORT_ROLE, result.kind.casefold())
-
-        size_item = SortableTableWidgetItem(format_size(result.size))
-        size_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        size_item.setData(SORT_ROLE, -1 if result.size is None else result.size)
-
-        modified_item = SortableTableWidgetItem(format_modified(result.modified))
-        modified_item.setData(SORT_ROLE, 0 if result.modified is None else result.modified.timestamp())
-
-        self.search_table.setItem(row, 0, path_item)
-        self.search_table.setItem(row, 1, match_item)
-        self.search_table.setItem(row, 2, kind_item)
-        self.search_table.setItem(row, 3, size_item)
-        self.search_table.setItem(row, 4, modified_item)
-        self.search_table.setSortingEnabled(sorting)
+        self.search_panel.add_result(result)
 
     def _search_finished(self, cancelled: bool) -> None:
         if cancelled:
             self.set_status("Поиск остановлен")
         else:
-            self.set_status(f"Поиск завершён. Найдено: {self.search_table.rowCount()}")
+            self.set_status(f"Поиск завершён. Найдено: {self.search_panel.result_count()}")
         self.search_cancel_event = None
 
     def _show_search_error(self, error: str) -> None:
@@ -846,13 +425,9 @@ class ArchiveManagerApp(QMainWindow):
         self.search_cancel_event = None
 
     def open_search_result(self) -> None:
-        rows = self.search_table.selectionModel().selectedRows()
-        if not rows:
+        path = self.search_panel.selected_path()
+        if path is None:
             return
-        item = self.search_table.item(rows[0].row(), 0)
-        if item is None:
-            return
-        path = Path(item.data(PATH_ROLE))
         try:
             if path.is_dir():
                 self.load_directory(path)
@@ -864,45 +439,18 @@ class ArchiveManagerApp(QMainWindow):
             QMessageBox.critical(self, "Ошибка", f"Не удалось открыть результат:\n{exc}")
 
     def show_file_context_menu(self, pos: QPoint) -> None:
-        index = self.file_table.indexAt(pos)
-        if index.isValid():
-            selected_rows = {row.row() for row in self.file_table.selectionModel().selectedRows()}
-            if index.row() not in selected_rows:
-                self.file_table.selectRow(index.row())
-
         menu = QMenu(self)
-        self._add_menu_action(menu, "Открыть", QStyle.StandardPixmap.SP_DialogOpenButton, self.open_selected)
-        self._add_menu_action(
-            menu,
-            "Показать содержимое архива",
-            QStyle.StandardPixmap.SP_FileDialogInfoView,
-            self.show_archive_contents,
-        )
+        for key in ("open", "preview"):
+            menu.addAction(self.app_actions[key])
         menu.addSeparator()
-        self._add_menu_action(menu, "Создать ZIP", QStyle.StandardPixmap.SP_DriveHDIcon, self.create_zip_from_selection)
-        self._add_menu_action(menu, "Распаковать", QStyle.StandardPixmap.SP_DialogOpenButton, self.extract_selected_archive)
+        for key in ("zip", "extract"):
+            menu.addAction(self.app_actions[key])
         menu.addSeparator()
-        self._add_menu_action(menu, "Копировать", QStyle.StandardPixmap.SP_DialogSaveButton, self.copy_selected)
-        self._add_menu_action(menu, "Переместить", QStyle.StandardPixmap.SP_ArrowForward, self.move_selected)
-        self._add_menu_action(menu, "Переименовать", QStyle.StandardPixmap.SP_FileDialogDetailedView, self.rename_selected)
-        self._add_menu_action(menu, "Удалить", QStyle.StandardPixmap.SP_TrashIcon, self.delete_selected)
+        for key in ("copy", "move", "rename", "delete"):
+            menu.addAction(self.app_actions[key])
         menu.addSeparator()
-        self._add_menu_action(menu, "Размер папки", QStyle.StandardPixmap.SP_FileDialogInfoView, self.calculate_selected_size)
+        menu.addAction(self.app_actions["size"])
         menu.exec(self.file_table.viewport().mapToGlobal(pos))
-
-    def _add_menu_action(
-        self,
-        menu: QMenu,
-        text: str,
-        icon: QStyle.StandardPixmap,
-        callback: Callable[[], None],
-    ) -> QAction:
-        action = QAction(self._standard_icon(icon), text, self)
-        def on_menu_triggered(_checked: bool = False, cb: Callable[[], None] = callback) -> None:
-            cb()
-        action.triggered.connect(on_menu_triggered)
-        menu.addAction(action)
-        return action
 
     def _start_operation(
         self,
