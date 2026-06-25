@@ -122,9 +122,48 @@ class NoFocusDelegate(QStyledItemDelegate):
         index: QModelIndex | QPersistentModelIndex,
     ) -> None:
         clean_option = self._prepare_option(option)
-        if self._paint_hover_cell(painter, clean_option, index):
-            return
-        super().paint(painter, clean_option, index)
+        is_selected = bool(clean_option.state & QStyle.StateFlag.State_Selected)
+        is_hovered = self._is_hovered(index) and not is_selected
+        has_icon = index.data(Qt.ItemDataRole.DecorationRole) is not None
+
+        if is_hovered and has_icon:
+            # Custom paint: stable icon size, no Qt hover effect on icon
+            painter.fillRect(clean_option.rect, HOVER_ROW_COLOR)
+            self._paint_content(painter, clean_option, index)
+        else:
+            if is_hovered:
+                painter.fillRect(clean_option.rect, HOVER_ROW_COLOR)
+            super().paint(painter, clean_option, index)
+
+
+    def _paint_content(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> None:
+        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        icon = index.data(Qt.ItemDataRole.DecorationRole)
+        alignment = index.data(Qt.ItemDataRole.TextAlignmentRole)
+        if alignment is None:
+            alignment = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+
+        text_rect = option.rect.adjusted(10, 0, -10, 0)
+        if icon is not None and hasattr(icon, "paint"):
+            icon_rect = QRect(
+                text_rect.left(),
+                text_rect.top() + (text_rect.height() - 18) // 2,
+                18,
+                18,
+            )
+            icon.paint(painter, icon_rect)
+            text_rect.setLeft(icon_rect.right() + 10)
+
+        is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        painter.save()
+        painter.setPen(QColor("#152033") if not is_selected else QColor("#152033"))
+        painter.drawText(text_rect, alignment, text)
+        painter.restore()
 
 
 class SizeButtonDelegate(NoFocusDelegate):

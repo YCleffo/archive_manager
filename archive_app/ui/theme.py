@@ -209,7 +209,10 @@ QMenu::separator {
 
 QStatusBar {
     background: transparent;
+    border-top: 1px solid #d8e0ea;
     color: #667385;
+    min-height: 24px;
+    padding: 0 8px;
 }
 
 QToolTip {
