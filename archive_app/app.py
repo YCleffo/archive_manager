@@ -1182,6 +1182,15 @@ class ArchiveManagerApp(QMainWindow):
 
 
 def main() -> None:
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            myappid = "yuran.archivemanager.app.1.0"
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except Exception:
+            pass
+
     _write_pid_file()
 
     os.environ["QT_LOGGING_RULES"] = "*.debug=false;*.warning=false"

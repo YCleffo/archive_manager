@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QMenu,
     QSizePolicy,
-    QToolButton,
+    QPushButton,
     QWidget,
 )
 
@@ -68,7 +68,7 @@ class ActionBar(QFrame):
         self.setObjectName("SurfaceBar")
         self._actions = actions
         self._icons = icons
-        self._buttons: dict[str, QToolButton] = {}
+        self._buttons: dict[str, QPushButton] = {}
         self._hidden_action_keys: list[str] = []
         self._pending_overflow_update = False
 
@@ -98,13 +98,23 @@ class ActionBar(QFrame):
         self._buttons[key] = button
         self._layout.addWidget(button)
 
-    def _button(self, action: QAction) -> QToolButton:
-        button = QToolButton(self)
+    def _button(self, action: QAction) -> QPushButton:
+        button = QPushButton(self)
         button.setMinimumHeight(32)
-        button.setDefaultAction(action)
-        button.setText("  " + action.text())
-        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         button.setIconSize(QSize(18, 18))
+        button.clicked.connect(action.trigger)
+
+        def sync_state(btn=button, act=action):
+            btn.setEnabled(act.isEnabled())
+            text = act.text().strip()
+            btn.setText(text)
+            btn.setIcon(act.icon())
+            btn.setToolTip(act.toolTip())
+
+        action.changed.connect(sync_state)
+        sync_state()
+
         make_interactive(button, action.toolTip())
         return button
 
@@ -119,16 +129,16 @@ class ActionBar(QFrame):
 
     def _more_button(
         self, actions: Mapping[str, QAction], icons: IconFactory
-    ) -> QToolButton:
-        button = QToolButton(self)
+    ) -> QPushButton:
+        button = QPushButton(self)
         button.setMinimumHeight(32)
+        button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         button.setText("Ещё")
         button.setIcon(icons.icon("more"))
         button.setIconSize(QSize(18, 18))
-        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         make_interactive(button, "Показать больше действий")
 
-        def show_menu(_checked: bool = False, owner: QToolButton = button) -> None:
+        def show_menu(_checked: bool = False, owner: QPushButton = button) -> None:
             self._show_more_menu(owner, actions)
 
         button.clicked.connect(show_menu)
@@ -221,7 +231,7 @@ class ActionBar(QFrame):
         )
 
     def _show_more_menu(
-        self, button: QToolButton, actions: Mapping[str, QAction]
+        self, button: QPushButton, actions: Mapping[str, QAction]
     ) -> None:
         menu = QMenu(button)
         menu.setObjectName("MoreActionsMenu")

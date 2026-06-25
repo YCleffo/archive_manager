@@ -30,6 +30,7 @@ QPushButton {
     border-radius: 7px;
     min-height: 32px;
     padding: 2px 8px;
+    spacing: 6px;
     outline: 0;
 }
 
@@ -227,13 +228,6 @@ QStatusBar {
     padding: 0 8px;
 }
 
-QToolTip {
-    background: #1f2937;
-    color: #ffffff;
-    border: 0;
-    border-radius: 6px;
-    padding: 6px 8px;
-}
 
 QListView {
     background: #ffffff;
