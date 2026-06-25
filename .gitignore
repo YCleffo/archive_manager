@@ -22,3 +22,5 @@ dist/
 archive_app/tools/ffmpeg.exe
 ffprobe.exe
 ffmpeg.exe
+
+file_scan_report.txt
