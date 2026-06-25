@@ -189,7 +189,7 @@ QMenu {
     border: 1px solid #d8e0ea;
     border-radius: 8px;
     padding: 4px;
-    margin: 12px 12px 18px 12px; 
+    margin: 8px;
 }
 
 QMenu::icon {

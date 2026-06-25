@@ -63,7 +63,17 @@ class ActionBar(QFrame):
         self, actions: Mapping[str, QAction], icons: IconFactory
     ) -> QToolButton:
         menu = QMenu(self)
-        menu.setWindowFlag(Qt.WindowType.NoDropShadowWindowHint, True)
+        menu.setWindowFlags(menu.windowFlags() | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint)
+        menu.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        
+        from PySide6.QtWidgets import QGraphicsDropShadowEffect
+        from PySide6.QtGui import QColor
+        shadow = QGraphicsDropShadowEffect(menu)
+        shadow.setBlurRadius(12)
+        shadow.setColor(QColor(0, 0, 0, 40))
+        shadow.setOffset(0, 4)
+        menu.setGraphicsEffect(shadow)
+
         for key in ("undo", "rename", "zip", "extract", "preview", "size"):
             menu.addAction(actions[key])
 
