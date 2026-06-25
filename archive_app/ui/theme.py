@@ -228,6 +228,16 @@ QStatusBar {
     padding: 0 8px;
 }
 
+QSplitter#MainVerticalSplitter::handle {
+    background: transparent;
+    height: 8px;
+}
+
+QSplitter#MainVerticalSplitter::handle:hover,
+QSplitter#MainVerticalSplitter::handle:pressed {
+    background: #d8e0ea;
+}
+
 
 QListView {
     background: #ffffff;

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QDialog,
     QSplitter,
+    QStackedWidget,
 )
 
 from .archive_utils import (
@@ -352,7 +353,6 @@ class ArchiveManagerApp(QMainWindow):
         self.content_splitter.setStretchFactor(0, 1)
         self.content_splitter.setStretchFactor(1, 0)
         self.content_splitter.setSizes([920, 340])
-        layout.addWidget(self.content_splitter, 1)
 
         self.search_panel = SearchPanel(self.icons, central)
         self.search_panel.start_requested.connect(self.start_search)
@@ -360,8 +360,12 @@ class ArchiveManagerApp(QMainWindow):
         self.search_panel.reset_requested.connect(self.reset_search_panel)
         self.search_panel.close_requested.connect(self.hide_search_panel)
         self.search_panel.open_result_requested.connect(self.open_search_result)
-        self.search_panel.hide()
-        layout.addWidget(self.search_panel)
+
+        self.main_stack = QStackedWidget(central)
+        self.main_stack.addWidget(self.content_splitter)
+        self.main_stack.addWidget(self.search_panel)
+
+        layout.addWidget(self.main_stack, 1)
 
         self.setCentralWidget(central)
 
@@ -835,16 +839,16 @@ class ArchiveManagerApp(QMainWindow):
             self.set_status_with_context("Панель превью скрыта")
 
     def toggle_search_panel(self) -> None:
-        if self.search_panel.isVisible():
+        if self.main_stack.currentWidget() == self.search_panel:
             self.hide_search_panel()
         else:
-            self.search_panel.show()
+            self.main_stack.setCurrentWidget(self.search_panel)
             self.search_panel.focus_query()
             self.set_status("Панель поиска открыта")
 
     def hide_search_panel(self) -> None:
         self.stop_search(silent=True)
-        self.search_panel.hide()
+        self.main_stack.setCurrentWidget(self.content_splitter)
         self.set_status("Панель поиска скрыта")
 
     def reset_search_panel(self) -> None:
@@ -924,6 +928,7 @@ class ArchiveManagerApp(QMainWindow):
             return
         try:
             if path.is_dir():
+                self.hide_search_panel()
                 self.load_directory(path)
             elif path.exists():
                 open_in_system(path)
