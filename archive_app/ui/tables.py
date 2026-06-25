@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 
 from PySide6.QtCore import (
@@ -345,19 +345,13 @@ class FileTable(QTableWidget):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if watched == self.viewport():
-            if event.type() in (QEvent.Type.MouseMove, QEvent.Type.HoverMove):
-                ev = cast(Any, event)
-                pos_func = getattr(ev, "position", getattr(ev, "pos", None))
-                if callable(pos_func):
-                    point = pos_func()
-                    y = int(point.y())  # type: ignore
-                    self._set_hovered_row(self.rowAt(y))
+            if isinstance(event, QMouseEvent) and event.type() in (
+                QEvent.Type.MouseMove,
+                QEvent.Type.HoverMove,
+            ):
+                self._set_hovered_row(self.rowAt(event.position().toPoint().y()))
             elif event.type() == QEvent.Type.Leave:
                 self._set_hovered_row(-1)
-        elif event.type() == QEvent.Type.Enter and hasattr(watched, "property"):
-            row = watched.property("rowIndex")
-            if isinstance(row, int):
-                self._set_hovered_row(row)
         return super().eventFilter(watched, event)
 
     def _on_cell_entered(self, row: int, _column: int) -> None:
@@ -394,7 +388,7 @@ class FileTable(QTableWidget):
             selected_rows = {row.row() for row in self.selectionModel().selectedRows()}
             if index.row() not in selected_rows:
                 self.selectRow(index.row())
-        self.context_menu_requested.emit(pos)
+        self.context_menu_requested.emit(self.viewport().mapToGlobal(pos))
 
 
 class SearchResultsTable(QTableWidget):
@@ -496,13 +490,11 @@ class SearchResultsTable(QTableWidget):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if watched == self.viewport():
-            if event.type() in (QEvent.Type.MouseMove, QEvent.Type.HoverMove):
-                ev = cast(Any, event)
-                pos_func = getattr(ev, "position", getattr(ev, "pos", None))
-                if callable(pos_func):
-                    point = pos_func()
-                    y = int(point.y())  # type: ignore
-                    self._set_hovered_row(self.rowAt(y))
+            if isinstance(event, QMouseEvent) and event.type() in (
+                QEvent.Type.MouseMove,
+                QEvent.Type.HoverMove,
+            ):
+                self._set_hovered_row(self.rowAt(event.position().toPoint().y()))
             elif event.type() == QEvent.Type.Leave:
                 self._set_hovered_row(-1)
         return super().eventFilter(watched, event)

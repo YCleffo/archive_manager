@@ -712,7 +712,8 @@ class ArchiveManagerApp(QMainWindow):
             menu.addAction(self.app_actions[key])
         menu.addSeparator()
         menu.addAction(self.app_actions["size"])
-        menu.exec(self.file_table.viewport().mapToGlobal(pos))
+        menu.exec(pos)
+
 
     def _start_operation(
         self,
