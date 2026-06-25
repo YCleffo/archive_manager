@@ -50,6 +50,21 @@ QToolButton::menu-indicator {
     width: 0;
 }
 
+QPushButton#SizeButton {
+    background: #f8fafc;
+    border: 1px solid #cfd8e3;
+    border-radius: 6px;
+    color: #425466;
+    font-size: 9pt;
+    min-height: 24px;
+    padding: 2px 8px;
+}
+
+QPushButton#SizeButton:hover {
+    background: #edf4ff;
+    border-color: #aab8c8;
+}
+
 QLineEdit {
     background: #ffffff;
     border: 1px solid #cfd8e3;

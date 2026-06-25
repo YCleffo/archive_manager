@@ -41,6 +41,10 @@ class IconFactory:
             painter.drawLine(p(12.5, 5), p(7, 10))
             painter.drawLine(p(7, 10), p(12.5, 15))
             painter.drawLine(p(7.5, 10), p(16, 10))
+        elif name == "forward":
+            painter.drawLine(p(7.5, 5), p(13, 10))
+            painter.drawLine(p(13, 10), p(7.5, 15))
+            painter.drawLine(p(4, 10), p(12.5, 10))
         elif name == "up":
             painter.drawLine(p(10, 4.5), p(5, 10))
             painter.drawLine(p(10, 4.5), p(15, 10))
@@ -52,6 +56,10 @@ class IconFactory:
             painter.drawArc(r(4, 4, 12, 12), 35 * 16, 280 * 16)
             painter.drawLine(p(14.5, 4.7), p(16.2, 8.2))
             painter.drawLine(p(14.5, 4.7), p(11.2, 5.8))
+        elif name == "undo":
+            painter.drawLine(p(8, 6), p(4.5, 9.5))
+            painter.drawLine(p(8, 13), p(4.5, 9.5))
+            painter.drawPath(self._arc_path(p))
         elif name == "folder":
             self._draw_folder(painter, r, p, plus=False)
         elif name == "new-folder":
@@ -140,6 +148,13 @@ class IconFactory:
 
         painter.end()
         return QIcon(pixmap)
+
+    def _arc_path(self, p: Callable[[float, float], QPointF]) -> QPainterPath:
+        path = QPainterPath()
+        path.moveTo(p(5, 9.5))
+        path.cubicTo(p(8, 5.5), p(15.8, 6.5), p(15.8, 12))
+        path.cubicTo(p(15.8, 15), p(13.4, 16.4), p(10.4, 16.4))
+        return path
 
     def _draw_folder(self, painter: QPainter, r: Callable[[float, float, float, float], QRectF], p: Callable[[float, float], QPointF], plus: bool) -> None:
         path = QPainterPath()

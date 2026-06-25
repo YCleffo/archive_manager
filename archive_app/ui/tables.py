@@ -5,11 +5,22 @@ from pathlib import Path
 
 from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QKeyEvent
-from PySide6.QtWidgets import QAbstractItemView, QFrame, QHeaderView, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..file_utils import FileEntry, format_modified, format_size
 from ..search_utils import SearchResult
 from .icons import IconFactory
+from .theme import make_interactive
 
 SORT_ROLE = Qt.ItemDataRole.UserRole
 PATH_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -43,6 +54,7 @@ class FileTable(QTableWidget):
     delete_requested = Signal()
     rename_requested = Signal()
     context_menu_requested = Signal(QPoint)
+    size_requested = Signal(object)
 
     def __init__(self, icons: IconFactory, parent: QWidget | None = None) -> None:
         super().__init__(0, 4, parent)
@@ -121,6 +133,44 @@ class FileTable(QTableWidget):
         self.setItem(row, 1, kind_item)
         self.setItem(row, 2, size_item)
         self.setItem(row, 3, modified_item)
+        if entry.is_dir:
+            self._set_size_button(row, entry.path)
+
+    def set_folder_size(self, path: Path, total_size: int) -> None:
+        normalized = str(Path(path).resolve())
+        for row in range(self.rowCount()):
+            item = self.item(row, 0)
+            if item is not None and str(Path(item.data(PATH_ROLE)).resolve()) == normalized:
+                self.removeCellWidget(row, 2)
+                size_item = self.item(row, 2)
+                if size_item is None:
+                    size_item = SortableTableWidgetItem()
+                    self.setItem(row, 2, size_item)
+                size_item.setText(format_size(total_size))
+                size_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                size_item.setData(SORT_ROLE, total_size)
+                return
+
+    def _set_size_button(self, row: int, path: Path) -> None:
+        wrapper = QWidget(self)
+        wrapper.setStyleSheet("background: transparent;")
+        layout = QHBoxLayout(wrapper)
+        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setSpacing(0)
+        layout.addStretch(1)
+
+        button = QPushButton("Посчитать", wrapper)
+        button.setObjectName("SizeButton")
+        button.setFixedHeight(26)
+        button.setMaximumWidth(96)
+        make_interactive(button, "Посчитать размер этой папки")
+
+        def on_clicked(_checked: bool = False, requested_path: Path = path) -> None:
+            self.size_requested.emit(requested_path)
+
+        button.clicked.connect(on_clicked)
+        layout.addWidget(button)
+        self.setCellWidget(row, 2, wrapper)
 
     def _show_context_menu(self, pos: QPoint) -> None:
         index = self.indexAt(pos)

@@ -19,7 +19,7 @@ class ActionBar(QFrame):
         layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(7)
 
-        for key in ("back", "up", "home", "refresh"):
+        for key in ("back", "forward", "up", "home", "refresh"):
             layout.addWidget(self._button(actions[key]))
         layout.addWidget(self._separator())
         for key in ("new_folder", "copy", "move", "delete"):
@@ -49,7 +49,7 @@ class ActionBar(QFrame):
 
     def _more_button(self, actions: Mapping[str, QAction], icons: IconFactory) -> QToolButton:
         menu = QMenu(self)
-        for key in ("rename", "zip", "extract", "preview", "size"):
+        for key in ("undo", "rename", "zip", "extract", "preview", "size"):
             menu.addAction(actions[key])
 
         button = QToolButton(self)
