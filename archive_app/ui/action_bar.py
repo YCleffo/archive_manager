@@ -84,6 +84,8 @@ class ActionBar(QFrame):
             self._add_action_button(key)
 
         self._layout.addStretch(1)
+        self._right_separator = self._separator()
+        self._layout.addWidget(self._right_separator)
         for key in ("toggle_preview_panel", "search"):
             self._add_action_button(key)
         self._more_button_widget = self._more_button(actions, icons)
@@ -103,7 +105,7 @@ class ActionBar(QFrame):
         button.setIconSize(QSize(18, 18))
         button.clicked.connect(action.trigger)
 
-        def sync_state(btn=button, act=action):
+        def sync_state(btn: QPushButton = button, act: QAction = action) -> None:
             btn.setEnabled(act.isEnabled())
             text = act.text().strip()
             btn.setText(text)
