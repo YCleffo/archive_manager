@@ -17,7 +17,8 @@ QWidget {
 
 QFrame#SurfaceBar,
 QFrame#PathBar,
-QFrame#SearchPanel {
+QFrame#SearchPanel,
+QFrame#TableCard {
     background: #ffffff;
     border: 1px solid #d8e0ea;
     border-radius: 10px;
@@ -70,11 +71,16 @@ QCheckBox {
 QTableWidget {
     background: #ffffff;
     alternate-background-color: #fafbfc;
-    border: 1px solid #d8e0ea;
-    border-radius: 10px;
+    border: 0;
+    border-radius: 9px;
     gridline-color: transparent;
     selection-background-color: #e6f0ff;
     selection-color: #152033;
+}
+
+QTableWidget::viewport {
+    background: #ffffff;
+    border: 0;
 }
 
 QTableWidget::corner {
@@ -159,6 +165,7 @@ QHeaderView::section {
     color: #273548;
     font-weight: 600;
     padding: 9px 10px;
+    text-align: left;
 }
 
 QMenu {

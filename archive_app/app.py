@@ -27,7 +27,7 @@ from .ui.dialogs import ArchivePreviewDialog
 from .ui.icons import IconFactory
 from .ui.navigation_bar import PathBar
 from .ui.search_panel import SearchPanel
-from .ui.tables import FileTable
+from .ui.tables import FileTable, TableCard
 from .ui.theme import APP_STYLESHEET
 from .ui.workers import OperationWorker, SearchWorker
 
@@ -106,7 +106,8 @@ class ArchiveManagerApp(QMainWindow):
         self.file_table.delete_requested.connect(self.delete_selected)
         self.file_table.rename_requested.connect(self.rename_selected)
         self.file_table.context_menu_requested.connect(self.show_file_context_menu)
-        layout.addWidget(self.file_table, 1)
+        self.file_table_card = TableCard(self.file_table, central)
+        layout.addWidget(self.file_table_card, 1)
 
         self.search_panel = SearchPanel(self.icons, central)
         self.search_panel.start_requested.connect(self.start_search)

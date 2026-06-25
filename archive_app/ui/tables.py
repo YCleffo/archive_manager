@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 
-from PySide6.QtCore import QPoint, QRectF, Qt, Signal
-from PySide6.QtGui import QKeyEvent, QPainterPath, QRegion, QResizeEvent
-from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QTableWidget, QTableWidgetItem, QWidget
+from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import QAbstractItemView, QFrame, QHeaderView, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 
 from ..file_utils import FileEntry, format_modified, format_size
 from ..search_utils import SearchResult
@@ -26,15 +26,19 @@ class SortableTableWidgetItem(QTableWidgetItem):
         ).casefold()
 
 
-class RoundedTableWidget(QTableWidget):
-    def resizeEvent(self, event: QResizeEvent) -> None:
-        super().resizeEvent(event)
-        path = QPainterPath()
-        path.addRoundedRect(QRectF(self.rect()), 10, 10)
-        self.setMask(QRegion(path.toFillPolygon().toPolygon()))
+class TableCard(QFrame):
+    def __init__(self, table: QTableWidget, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("TableCard")
+        self.table = table
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(3, 3, 3, 3)
+        layout.setSpacing(0)
+        layout.addWidget(table)
 
 
-class FileTable(RoundedTableWidget):
+class FileTable(QTableWidget):
     open_requested = Signal()
     delete_requested = Signal()
     rename_requested = Signal()
@@ -50,6 +54,15 @@ class FileTable(RoundedTableWidget):
         self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        set_header_alignments(
+            self,
+            {
+                0: Qt.AlignmentFlag.AlignLeft,
+                1: Qt.AlignmentFlag.AlignLeft,
+                2: Qt.AlignmentFlag.AlignRight,
+                3: Qt.AlignmentFlag.AlignLeft,
+            },
+        )
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
         def on_cell_double_clicked(_row: int, _column: int) -> None:
@@ -118,7 +131,7 @@ class FileTable(RoundedTableWidget):
         self.context_menu_requested.emit(pos)
 
 
-class SearchResultsTable(RoundedTableWidget):
+class SearchResultsTable(QTableWidget):
     open_requested = Signal()
 
     def __init__(self, icons: IconFactory, parent: QWidget | None = None) -> None:
@@ -129,6 +142,16 @@ class SearchResultsTable(RoundedTableWidget):
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for column in range(1, 5):
             self.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        set_header_alignments(
+            self,
+            {
+                0: Qt.AlignmentFlag.AlignLeft,
+                1: Qt.AlignmentFlag.AlignLeft,
+                2: Qt.AlignmentFlag.AlignLeft,
+                3: Qt.AlignmentFlag.AlignRight,
+                4: Qt.AlignmentFlag.AlignLeft,
+            },
+        )
         def on_search_cell_double_clicked(_row: int, _column: int) -> None:
             self.open_requested.emit()
         self.cellDoubleClicked.connect(on_search_cell_double_clicked)
@@ -182,6 +205,7 @@ class SearchResultsTable(RoundedTableWidget):
 
 
 def configure_table(table: QTableWidget, multi_select: bool) -> None:
+    table.setFrameShape(QFrame.Shape.NoFrame)
     table.setAlternatingRowColors(True)
     table.setSortingEnabled(True)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -198,4 +222,12 @@ def configure_table(table: QTableWidget, multi_select: bool) -> None:
     table.verticalHeader().setVisible(False)
     table.verticalHeader().setDefaultSectionSize(36)
     table.horizontalHeader().setHighlightSections(False)
+    table.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
     table.setMouseTracking(True)
+
+
+def set_header_alignments(table: QTableWidget, alignments: dict[int, Qt.AlignmentFlag]) -> None:
+    for column, alignment in alignments.items():
+        item = table.horizontalHeaderItem(column)
+        if item is not None:
+            item.setTextAlignment(alignment | Qt.AlignmentFlag.AlignVCenter)

@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QCheckBox, QFrame, QHBoxLayout, QLabel, QLineEdit,
 
 from ..search_utils import SearchResult
 from .icons import IconFactory
-from .tables import SearchResultsTable
+from .tables import SearchResultsTable, TableCard
 from .theme import make_interactive
 
 
@@ -88,7 +88,7 @@ class SearchPanel(QFrame):
 
         self.results_table = SearchResultsTable(icons, self)
         self.results_table.open_requested.connect(self.open_result_requested.emit)
-        layout.addWidget(self.results_table, 1)
+        layout.addWidget(TableCard(self.results_table, self), 1)
 
     def query(self) -> str:
         return self.query_edit.text().strip()
