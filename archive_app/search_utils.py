@@ -76,6 +76,18 @@ def parse_extensions(raw: str) -> set[str]:
         result.add(ext)
     return result
 
+def _is_hidden_or_system(path: Path) -> bool:
+    if path.name.startswith("."):
+        return True
+    try:
+        attrs = getattr(path.stat(), "st_file_attributes", 0)
+        # FILE_ATTRIBUTE_HIDDEN = 2, FILE_ATTRIBUTE_SYSTEM = 4
+        if attrs & (2 | 4):
+            return True
+    except OSError:
+        pass
+    return False
+
 
 def _read_text_preview(path: Path, limit_bytes: int) -> str:
     data = path.read_bytes()[:limit_bytes]
@@ -108,7 +120,7 @@ def search_files(
         if cancel_event and cancel_event.is_set():
             return
             
-        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIR_NAMES and not os.path.islink(os.path.join(dirpath, d))]
+        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_DIR_NAMES and not os.path.islink(os.path.join(dirpath, d)) and not _is_hidden_or_system(Path(dirpath) / d)]
 
         for name in dirnames + filenames:
             if cancel_event and cancel_event.is_set():
@@ -118,7 +130,7 @@ def search_files(
 
             try:
                 path = Path(dirpath) / name
-                if path.is_symlink():
+                if path.is_symlink() or _is_hidden_or_system(path):
                     continue
 
                 is_dir = path.is_dir()

@@ -254,7 +254,7 @@ QListView::item:selected {
 QListView#PathCompleterPopup {
     background: #f5f7fa;
     border: 1px solid #d8e0ea;
-    border-radius: 8px;
+    border-radius: 0;
     padding: 6px;
     outline: 0;
 }

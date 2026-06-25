@@ -16,6 +16,18 @@ def _is_same_or_inside(child: Path, parent: Path) -> bool:
     parent = parent.resolve()
     return child == parent or parent in child.parents
 
+def _is_hidden_or_system(path: Path) -> bool:
+    if path.name.startswith("."):
+        return True
+    try:
+        attrs = getattr(path.stat(), "st_file_attributes", 0)
+        # FILE_ATTRIBUTE_HIDDEN = 2, FILE_ATTRIBUTE_SYSTEM = 4
+        if attrs & (2 | 4):
+            return True
+    except OSError:
+        pass
+    return False
+
 @dataclass(frozen=True)
 class FileEntry:
     path: Path
@@ -50,6 +62,8 @@ def list_directory(path: Path) -> list[FileEntry]:
     path = Path(path).expanduser().resolve()
     entries: list[FileEntry] = []
     for child in path.iterdir():
+        if _is_hidden_or_system(child):
+            continue
         try:
             stat = child.stat()
             is_dir = child.is_dir()
