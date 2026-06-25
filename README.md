@@ -110,7 +110,9 @@ python3 main.py
 Для курсового проекта подготовлен скрипт сборки одного файла:
 
 ```bat
-build_exe_onefile.bat
+.\build_exe_onefile.bat
+
+.\build_exe_onefile.bat 2>&1 | Tee-Object -FilePath build_output.log
 ```
 
 Готовый файл появится здесь:
