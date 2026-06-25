@@ -16,11 +16,11 @@ from .theme import make_interactive
 
 
 import os
-from PySide6.QtCore import QStringListModel
+from PySide6.QtCore import QStringListModel, QObject
 
 
 class PathCompleter(QCompleter):
-    def __init__(self, parent=None):
+    def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.string_list_model = QStringListModel()
         self.setModel(self.string_list_model)
@@ -46,7 +46,7 @@ class PathCompleter(QCompleter):
             return
 
         try:
-            suggestions = []
+            suggestions: list[str] = []
             with os.scandir(dir_path) as it:
                 for entry in it:
                     if entry.is_dir():
