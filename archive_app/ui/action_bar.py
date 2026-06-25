@@ -84,8 +84,6 @@ class ActionBar(QFrame):
             self._add_action_button(key)
 
         self._layout.addStretch(1)
-        self._right_separator = self._separator()
-        self._layout.addWidget(self._right_separator)
         for key in ("toggle_preview_panel", "search"):
             self._add_action_button(key)
         self._more_button_widget = self._more_button(actions, icons)
