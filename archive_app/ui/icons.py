@@ -31,6 +31,7 @@ _ICON_PATHS = {
     "close": '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
 }
 
+
 class IconFactory:
     def __init__(self, color: str = "#425466") -> None:
         self.color = color
@@ -45,29 +46,27 @@ class IconFactory:
 
     def _build_icon(self, name: str, size: int, color: str) -> QIcon:
         path_data = _ICON_PATHS.get(name, '<circle cx="12" cy="12" r="10"/>')
-        
-        # We calculate a suitable stroke width based on size.
-        # At 20px, a stroke of ~1.6 looks good, at 24px it's 2.
+
         stroke_width = max(1.5, size / 12)
-        
-        svg_content = f'''
+
+        svg_content = f"""
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" 
-             stroke="{color}" stroke-width="{stroke_width}" 
-             stroke-linecap="round" stroke-linejoin="round">
+            stroke="{color}" stroke-width="{stroke_width}" 
+            stroke-linecap="round" stroke-linejoin="round">
             {path_data}
         </svg>
-        '''
-        
-        renderer = QSvgRenderer(svg_content.encode('utf-8'))
-        
+        """
+
+        renderer = QSvgRenderer(svg_content.encode("utf-8"))
+
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.GlobalColor.transparent)
-        
+
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-        
+
         renderer.render(painter)
         painter.end()
-        
+
         return QIcon(pixmap)

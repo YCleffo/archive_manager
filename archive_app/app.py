@@ -59,7 +59,6 @@ PID_FILE = Path(__file__).resolve().parent.parent / ".archive_manager.pid"
 DirectorySignature = tuple[tuple[str, bool, int, int], ...]
 
 
-
 class ArchiveManagerApp(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -481,8 +480,6 @@ class ArchiveManagerApp(QMainWindow):
                 self.go_forward()
                 return True
 
-
-
         return super().eventFilter(watched, event)
 
     def closeEvent(self, event: QCloseEvent) -> None:
@@ -525,7 +522,9 @@ class ArchiveManagerApp(QMainWindow):
                 self.file_table.verticalScrollBar().value() if preserve_view else 0
             )
 
-            def task(status: Callable[[str], None]) -> tuple[list[FileEntry], DirectorySignature]:
+            def task(
+                status: Callable[[str], None],
+            ) -> tuple[list[FileEntry], DirectorySignature]:
                 status(f"Чтение директории: {path.name}...")
                 entries = list_directory(path)
                 return entries, self._signature_from_entries(entries)
@@ -1180,6 +1179,9 @@ class ArchiveManagerApp(QMainWindow):
 
 def main() -> None:
     _write_pid_file()
+
+    os.environ["QT_LOGGING_RULES"] = "*.debug=false;*.warning=false"
+
     app = QApplication(sys.argv)
 
     from PySide6.QtCore import QTranslator, QLibraryInfo

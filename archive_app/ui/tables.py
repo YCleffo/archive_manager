@@ -46,6 +46,7 @@ PATH_ROLE = Qt.ItemDataRole.UserRole + 1
 HOVER_ROLE = Qt.ItemDataRole.UserRole + 2
 SIZE_BUTTON_ROLE = Qt.ItemDataRole.UserRole + 3
 SIZE_PATH_ROLE = Qt.ItemDataRole.UserRole + 4
+CALCULATED_SIZE_ROLE = Qt.ItemDataRole.UserRole + 5
 HOVER_ROW_COLOR = QColor("#e6f0ff")
 BUTTON_BG_COLOR = QColor("#ffffff")
 BUTTON_HOVER_BG_COLOR = QColor("#ffffff")
@@ -202,14 +203,19 @@ class SizeButtonDelegate(NoFocusDelegate):
 
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
         painter.setPen(QPen(BUTTON_BORDER_COLOR, 1))
         painter.setBrush(BUTTON_HOVER_BG_COLOR if row_hovered else BUTTON_BG_COLOR)
         painter.drawRoundedRect(button_rect, 6, 6)
         painter.setPen(BUTTON_TEXT_COLOR)
+        
+        calculated_size = index.data(CALCULATED_SIZE_ROLE)
+        button_text = str(calculated_size) if calculated_size else str(index.data(Qt.ItemDataRole.DisplayRole) or "Посчитать")
+        
         painter.drawText(
             button_rect,
             Qt.AlignmentFlag.AlignCenter,
-            str(index.data(Qt.ItemDataRole.DisplayRole) or "Посчитать"),
+            button_text,
         )
         painter.restore()
 
@@ -236,7 +242,7 @@ class SizeButtonDelegate(NoFocusDelegate):
     @staticmethod
     def _button_rect(cell_rect: QRect) -> QRect:
         height = max(26, cell_rect.height() - 10)
-        width = min(88, max(40, cell_rect.width() - 16))
+        width = min(110, max(60, cell_rect.width() - 16))
         x = cell_rect.x() + (cell_rect.width() - width) // 2
         y = cell_rect.y() + (cell_rect.height() - height) // 2
         return QRect(x, y, width, height)
@@ -405,13 +411,8 @@ class FileTable(QTableWidget):
                 if size_item is None:
                     size_item = SortableTableWidgetItem()
                     self.setItem(row, 2, size_item)
-                size_item.setText(format_size(total_size))
-                size_item.setTextAlignment(
-                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                )
                 size_item.setData(SORT_ROLE, total_size)
-                size_item.setData(SIZE_BUTTON_ROLE, False)
-                size_item.setData(SIZE_PATH_ROLE, None)
+                size_item.setData(CALCULATED_SIZE_ROLE, format_size(total_size))
                 return
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:

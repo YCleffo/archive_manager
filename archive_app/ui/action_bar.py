@@ -222,9 +222,6 @@ class ActionBar(QFrame):
     def _show_more_menu(
         self, button: QToolButton, actions: Mapping[str, QAction]
     ) -> None:
-        # QToolButton.setMenu() переиспользует один и тот же QMenu.
-        # На Windows/PySide6 с кастомными popup это иногда открывается только один раз.
-        # Поэтому меню создаётся заново при каждом клике.
         menu = QMenu(button)
         menu.setObjectName("MoreActionsMenu")
         menu.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -248,11 +245,10 @@ class ActionBar(QFrame):
             button.setDown(False)
 
         menu.aboutToHide.connect(release_button)
-        
-        # Вычисляем позицию так, чтобы правый край меню совпадал с правым краем кнопки
+
         menu.adjustSize()
         position = button.mapToGlobal(button.rect().bottomRight())
         position.setX(position.x() - menu.width())
-        
+
         menu.exec(position)
         button.setDown(False)
