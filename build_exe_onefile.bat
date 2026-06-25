@@ -17,7 +17,13 @@ echo ==========================================
 echo.
 
 if not exist "main.py" (
-    echo [ERROR] main.py not found. Run this bat from project root.
+    echo [ERROR] main.py not found. Run this file from project root.
+    pause
+    exit /b 1
+)
+
+if not exist "assets\app.ico" (
+    echo [ERROR] assets\app.ico not found.
     pause
     exit /b 1
 )
@@ -32,7 +38,6 @@ call ".venv\Scripts\activate.bat"
 
 echo [3/7] Installing dependencies...
 python -m pip install --upgrade pip
-
 if exist "requirements-dev.txt" (
     pip install -r requirements-dev.txt
 ) else (
@@ -68,6 +73,10 @@ pyinstaller ^
     --onefile ^
     --windowed ^
     --name "%APP_NAME%" ^
+    --icon "assets\app.ico" ^
+    --manifest "packaging\windows\app.manifest" ^
+    --version-file "packaging\windows\version_info.txt" ^
+    --add-data "assets\app.ico;assets" ^
     --collect-binaries imageio_ffmpeg ^
     --collect-data imageio_ffmpeg ^
     --hidden-import pillow_heif ^
