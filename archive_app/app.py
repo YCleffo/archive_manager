@@ -300,7 +300,7 @@ class ArchiveManagerApp(QMainWindow):
         layout.addWidget(self.search_panel)
 
         self.setCentralWidget(central)
-        
+
         self.status_label = QLabel(self)
         self.status_label.setStyleSheet("color: #4b5563; font-size: 13px;")
         self.statusBar().addWidget(self.status_label)
@@ -337,7 +337,9 @@ class ArchiveManagerApp(QMainWindow):
         self.update_action_counts()
 
     def set_status_with_context(self, message: str) -> None:
-        self.set_status(f"{message} | {self._selection_text()} | {self._clipboard_text()}")
+        self.set_status(
+            f"{message} | {self._selection_text()} | {self._clipboard_text()}"
+        )
 
     def update_action_counts(self) -> None:
         selected_count = len(self.get_selected_paths())
@@ -433,7 +435,7 @@ class ArchiveManagerApp(QMainWindow):
             if answer != QMessageBox.StandardButton.Yes:
                 event.ignore()
                 return
-                
+
         self.stop_search(silent=True)
         self.thread_pool.clear()
         self.thread_pool.waitForDone(1000)
@@ -447,10 +449,10 @@ class ArchiveManagerApp(QMainWindow):
             path = Path(path).expanduser().resolve()
             if not path.exists() or not path.is_dir():
                 raise NotADirectoryError(str(path))
-            
+
             self.load_generation += 1
             generation = self.load_generation
-            
+
             def task(status: Callable[[str], None]) -> list[FileEntry]:
                 status(f"Чтение директории: {path.name}...")
                 return list_directory(path)
@@ -468,11 +470,7 @@ class ArchiveManagerApp(QMainWindow):
                 self.update_action_counts()
                 self.update_selection_status()
 
-            self._start_operation(
-                task,
-                "Ошибка загрузки",
-                on_result
-            )
+            self._start_operation(task, "Ошибка загрузки", on_result)
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка", f"Не удалось открыть папку:\n{exc}")
             self.set_status("Ошибка открытия папки")
@@ -638,11 +636,11 @@ class ArchiveManagerApp(QMainWindow):
     def paste_clipboard(self) -> None:
         if not self._clipboard_paths:
             return
-            
+
         is_cut = self._clipboard_is_cut
         paths = self._clipboard_paths
         dest = self.current_path
-        
+
         def task(status: Callable[[str], None]) -> int:
             if is_cut:
                 status("Перемещение...")
@@ -652,18 +650,22 @@ class ArchiveManagerApp(QMainWindow):
                 status("Копирование...")
                 copied = copy_items(paths, dest)
                 return len(copied)
-                
+
         def on_success(count: int) -> None:
             if is_cut:
                 self._clipboard_paths = []
                 self._clipboard_is_cut = False
                 self.update_action_counts()
-                self.set_status_with_context(f"Перемещено объектов: {count} | буфер очищен")
+                self.set_status_with_context(
+                    f"Перемещено объектов: {count} | буфер очищен"
+                )
             else:
                 self.update_action_counts()
-                self.set_status_with_context(f"Скопировано объектов: {count} | можно вставить ещё: {len(self._clipboard_paths)}")
+                self.set_status_with_context(
+                    f"Скопировано объектов: {count} | можно вставить ещё: {len(self._clipboard_paths)}"
+                )
             self.refresh()
-            
+
         self._start_operation(task, "Ошибка вставки", on_success)
 
     def create_zip_from_selection(self) -> None:
@@ -675,6 +677,7 @@ class ArchiveManagerApp(QMainWindow):
             return
 
         from archive_app.file_utils import ensure_unique_path
+
         default_name = "архив.zip" if len(paths) != 1 else f"{paths[0].stem}.zip"
         output_path = ensure_unique_path(self.current_path / default_name)
 
@@ -704,9 +707,7 @@ class ArchiveManagerApp(QMainWindow):
     def show_archive_contents(self) -> None:
         path = self.get_selected_path()
         if path is None or not path.is_file() or not is_supported_archive(path):
-            QMessageBox.information(
-                self, "Содержимое", "Выберите архив для просмотра"
-            )
+            QMessageBox.information(self, "Содержимое", "Выберите архив для просмотра")
             return
         self.show_archive_contents_for_path(path)
 
@@ -714,7 +715,11 @@ class ArchiveManagerApp(QMainWindow):
         def task(status: Callable[[str], None]) -> str:
             status("Чтение архива...")
             members = list_archive_members(path)
-            return "\n".join(members[:200]) + (f"\n...и ещё {len(members) - 200} элементов" if len(members) > 200 else "")
+            return "\n".join(members[:200]) + (
+                f"\n...и ещё {len(members) - 200} элементов"
+                if len(members) > 200
+                else ""
+            )
 
         def on_result(preview: str) -> None:
             ArchivePreviewDialog(self, path.name, preview or "Архив пуст").exec()
@@ -728,12 +733,11 @@ class ArchiveManagerApp(QMainWindow):
     def extract_selected_archive(self) -> None:
         path = self.get_selected_path()
         if path is None or not path.is_file() or not is_supported_archive(path):
-            QMessageBox.information(
-                self, "Распаковка", "Выберите архив для распаковки"
-            )
+            QMessageBox.information(self, "Распаковка", "Выберите архив для распаковки")
             return
 
         from archive_app.file_utils import ensure_unique_path
+
         destination_path = ensure_unique_path(self.current_path / path.stem)
 
         def task(status: Callable[[str], None]) -> tuple[Path, Path]:
@@ -794,7 +798,6 @@ class ArchiveManagerApp(QMainWindow):
             )
         self.set_status(f"Размер {path.name}: {format_size(total_size)}")
 
-
     def toggle_search_panel(self) -> None:
         if self.search_panel.isVisible():
             self.hide_search_panel()
@@ -833,12 +836,13 @@ class ArchiveManagerApp(QMainWindow):
             include_content=self.search_panel.include_content(),
             cancel_event=self.search_cancel_event,
         )
+
         def on_result(result: SearchResult, gen: int = generation) -> None:
             self.insert_search_result(result, gen)
-            
+
         def on_error(error: str, gen: int = generation) -> None:
             self._show_search_error(error, gen)
-            
+
         def on_finished(cancelled: bool, gen: int = generation) -> None:
             self._search_finished(cancelled, gen)
 

@@ -19,16 +19,30 @@ from PySide6.QtWidgets import (
 from .theme import make_interactive
 
 TEXT_EXTENSIONS = {
-    ".txt", ".md", ".py", ".json", ".csv", ".html", ".css", ".js", 
-    ".ts", ".xml", ".yml", ".yaml", ".ini", ".log", ".sql", ".sh", 
-    ".bat", ".ps1"
+    ".txt",
+    ".md",
+    ".py",
+    ".json",
+    ".csv",
+    ".html",
+    ".css",
+    ".js",
+    ".ts",
+    ".xml",
+    ".yml",
+    ".yaml",
+    ".ini",
+    ".log",
+    ".sql",
+    ".sh",
+    ".bat",
+    ".ps1",
 }
 
-IMAGE_EXTENSIONS = {
-    ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"
-}
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}
 
 MAX_TEXT_READ_SIZE = 5 * 1024 * 1024  # 5 MB
+
 
 class PreviewDialog(QDialog):
     def __init__(self, path: Path, parent: QWidget | None = None) -> None:
@@ -61,21 +75,23 @@ class PreviewDialog(QDialog):
 
         if suffix in TEXT_EXTENSIONS:
             return self._create_text_preview()
-        
+
         if suffix in IMAGE_EXTENSIONS:
             return self._create_image_preview()
-        
+
         return self._create_fallback_preview()
 
     def _create_text_preview(self) -> QWidget:
         stat = self.path.stat()
         if stat.st_size > MAX_TEXT_READ_SIZE:
-            return QLabel(f"Файл слишком велик для текстового просмотра ({stat.st_size} байт).\nОграничение: {MAX_TEXT_READ_SIZE} байт.")
+            return QLabel(
+                f"Файл слишком велик для текстового просмотра ({stat.st_size} байт).\nОграничение: {MAX_TEXT_READ_SIZE} байт."
+            )
 
         editor = QPlainTextEdit(self)
         editor.setReadOnly(True)
         editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        
+
         try:
             text = self.path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
@@ -83,7 +99,7 @@ class PreviewDialog(QDialog):
                 text = self.path.read_text(encoding="windows-1251")
             except UnicodeDecodeError:
                 text = "Ошибка кодировки: Не удалось прочитать файл как текст (UTF-8 или Windows-1251)."
-        
+
         editor.setPlainText(text)
         return editor
 
@@ -94,7 +110,7 @@ class PreviewDialog(QDialog):
 
         label = QLabel(scroll)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
+
         pixmap = QPixmap(str(self.path))
         if pixmap.isNull():
             return QLabel("Ошибка загрузки изображения.")
@@ -103,16 +119,22 @@ class PreviewDialog(QDialog):
         # For simplicity, let's make it scale to fit by default.
         label.setPixmap(pixmap)
         label.setScaledContents(False)
-        
+
         def resize_event(event: QResizeEvent) -> None:
             if not pixmap.isNull():
                 size = scroll.viewport().size()
                 if pixmap.width() > size.width() or pixmap.height() > size.height():
-                    label.setPixmap(pixmap.scaled(size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+                    label.setPixmap(
+                        pixmap.scaled(
+                            size,
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation,
+                        )
+                    )
                 else:
                     label.setPixmap(pixmap)
             QLabel.resizeEvent(label, event)
-            
+
         label.resizeEvent = resize_event
 
         scroll.setWidget(label)
@@ -122,7 +144,7 @@ class PreviewDialog(QDialog):
         stat = self.path.stat()
         mtime = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
         mime, _ = mimetypes.guess_type(str(self.path))
-        
+
         info = (
             f"Имя: {self.path.name}\n"
             f"Тип: {mime or 'Неизвестный'}\n"
@@ -131,7 +153,7 @@ class PreviewDialog(QDialog):
             f"Путь: {self.path}\n\n"
             "Внутренний просмотр для данного формата не поддерживается."
         )
-        
+
         label = QLabel(info)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setStyleSheet("font-size: 14px; color: #1d2733;")

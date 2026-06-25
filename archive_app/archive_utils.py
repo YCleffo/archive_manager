@@ -15,6 +15,7 @@ MAX_EXTRACT_TOTAL_SIZE = 2 * 1024 * 1024 * 1024
 MAX_EXTRACT_SINGLE_FILE_SIZE = 512 * 1024 * 1024
 MAX_COMPRESSION_RATIO = 500
 
+
 def _common_parent(paths: list[Path]) -> Path:
     if len(paths) == 1:
         return paths[0].parent
@@ -24,10 +25,12 @@ def _common_parent(paths: list[Path]) -> Path:
         )
     )
 
+
 def _is_same_or_inside(child: Path, parent: Path) -> bool:
     child = child.resolve()
     parent = parent.resolve()
     return child == parent or parent in child.parents
+
 
 def create_zip_archive(
     output_zip: Path,
@@ -77,15 +80,17 @@ def create_zip_archive(
 
     return output_zip
 
+
 def is_supported_archive(path: Path) -> bool:
     name = Path(path).name.lower()
     return name.endswith((".zip", ".tar", ".tar.gz", ".tgz", ".tar.bz2"))
+
 
 def _validate_archive_name(member_name: str) -> str:
     raw = member_name.replace("\\", "/").strip()
     if not raw:
         raise ValueError("Пустое имя элемента архива")
-    
+
     posix = PurePosixPath(raw)
     windows = PureWindowsPath(raw)
 
@@ -98,6 +103,7 @@ def _validate_archive_name(member_name: str) -> str:
 
     return "/".join(parts)
 
+
 def _safe_target(destination: Path, member_name: str) -> Path:
     destination = destination.resolve()
     valid_name = _validate_archive_name(member_name)
@@ -108,6 +114,7 @@ def _safe_target(destination: Path, member_name: str) -> Path:
         raise ValueError(f"Небезопасный путь в архиве: {member_name}") from exc
     return target
 
+
 def _validate_tar_member(member: tarfile.TarInfo) -> None:
     if member.issym() or member.islnk():
         raise ValueError(f"Ссылки в TAR запрещены: {member.name}")
@@ -115,6 +122,7 @@ def _validate_tar_member(member: tarfile.TarInfo) -> None:
         raise ValueError(f"Спецфайлы в TAR запрещены: {member.name}")
     if not (member.isfile() or member.isdir()):
         raise ValueError(f"Неподдерживаемый тип элемента TAR: {member.name}")
+
 
 def extract_archive(
     archive_path: Path,
@@ -135,35 +143,48 @@ def extract_archive(
             for member in archive.infolist():
                 file_count += 1
                 if file_count > MAX_EXTRACT_FILES:
-                    raise ValueError("Превышен лимит количества файлов в архиве (Zip Bomb)")
-                
+                    raise ValueError(
+                        "Превышен лимит количества файлов в архиве (Zip Bomb)"
+                    )
+
                 if member.file_size > MAX_EXTRACT_SINGLE_FILE_SIZE:
                     raise ValueError(f"Файл слишком большой: {member.filename}")
                 if member.compress_size == 0 and member.file_size > 0:
                     raise ValueError(f"Подозрительный ZIP-элемент: {member.filename}")
-                if member.compress_size > 0 and (member.file_size / member.compress_size) > MAX_COMPRESSION_RATIO:
-                    raise ValueError(f"Подозрительный уровень сжатия у файла: {member.filename} (Zip Bomb)")
-                    
+                if (
+                    member.compress_size > 0
+                    and (member.file_size / member.compress_size)
+                    > MAX_COMPRESSION_RATIO
+                ):
+                    raise ValueError(
+                        f"Подозрительный уровень сжатия у файла: {member.filename} (Zip Bomb)"
+                    )
+
                 total_size += member.file_size
                 if total_size > MAX_EXTRACT_TOTAL_SIZE:
                     raise ValueError("Превышен лимит распакованного размера (Zip Bomb)")
 
                 target = _safe_target(destination, member.filename)
-                
+
                 if target.exists() and target.is_dir() and not member.is_dir():
-                    raise ValueError(f"Конфликт: файл из архива пытается перезаписать папку {target.name}")
+                    raise ValueError(
+                        f"Конфликт: файл из архива пытается перезаписать папку {target.name}"
+                    )
                 if target.exists() and target.is_file() and member.is_dir():
-                    raise ValueError(f"Конфликт: папка из архива пытается перезаписать файл {target.name}")
+                    raise ValueError(
+                        f"Конфликт: папка из архива пытается перезаписать файл {target.name}"
+                    )
 
                 if progress:
                     progress(member.filename)
-                
+
                 if member.is_dir():
                     target.mkdir(parents=True, exist_ok=True)
                 else:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     with archive.open(member, "r") as src, open(target, "wb") as dst:
                         import shutil
+
                         shutil.copyfileobj(src, dst)
         return destination
 
@@ -174,41 +195,51 @@ def extract_archive(
             for member in archive:
                 file_count += 1
                 if file_count > MAX_EXTRACT_FILES:
-                    raise ValueError("Превышен лимит количества файлов в архиве (Tar Bomb)")
-                
+                    raise ValueError(
+                        "Превышен лимит количества файлов в архиве (Tar Bomb)"
+                    )
+
                 _validate_tar_member(member)
-                
+
                 if member.size > MAX_EXTRACT_SINGLE_FILE_SIZE:
                     raise ValueError(f"Файл слишком большой: {member.name}")
 
                 total_size += member.size
                 if total_size > MAX_EXTRACT_TOTAL_SIZE:
-                     raise ValueError("Превышен лимит распакованного размера (Tar Bomb)")
+                    raise ValueError("Превышен лимит распакованного размера (Tar Bomb)")
 
                 target = _safe_target(destination, member.name)
-                
+
                 if target.exists() and target.is_dir() and not member.isdir():
-                    raise ValueError(f"Конфликт: файл из архива пытается перезаписать папку {target.name}")
+                    raise ValueError(
+                        f"Конфликт: файл из архива пытается перезаписать папку {target.name}"
+                    )
                 if target.exists() and target.is_file() and member.isdir():
-                    raise ValueError(f"Конфликт: папка из архива пытается перезаписать файл {target.name}")
+                    raise ValueError(
+                        f"Конфликт: папка из архива пытается перезаписать файл {target.name}"
+                    )
 
                 if progress:
                     progress(member.name)
-                    
+
                 # Safe individual extract
                 if member.isdir():
                     target.mkdir(parents=True, exist_ok=True)
                 else:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     try:
-                        with archive.extractfile(member) as src, open(target, "wb") as dst: # type: ignore
+                        with archive.extractfile(member) as src, open(target, "wb") as dst:  # type: ignore
                             import shutil
+
                             shutil.copyfileobj(src, dst)
                     except Exception as e:
-                        raise ValueError(f"Ошибка при распаковке файла {member.name}") from e
+                        raise ValueError(
+                            f"Ошибка при распаковке файла {member.name}"
+                        ) from e
         return destination
 
     raise ValueError("Поддерживаются только .zip, .tar, .tar.gz, .tgz, .tar.bz2")
+
 
 def list_archive_members(archive_path: Path) -> list[str]:
     archive_path = Path(archive_path).expanduser().resolve()

@@ -11,10 +11,12 @@ from typing import Iterable
 
 from send2trash import send2trash
 
+
 def _is_same_or_inside(child: Path, parent: Path) -> bool:
     child = child.resolve()
     parent = parent.resolve()
     return child == parent or parent in child.parents
+
 
 def is_hidden_or_system(path: Path) -> bool:
     if path.name.startswith("."):
@@ -27,6 +29,7 @@ def is_hidden_or_system(path: Path) -> bool:
     except OSError:
         pass
     return False
+
 
 @dataclass(frozen=True)
 class FileEntry:
@@ -133,9 +136,11 @@ def copy_items(paths: Iterable[Path], destination: Path) -> list[Path]:
     copied: list[Path] = []
     for source in paths:
         source = Path(source).resolve()
-        
+
         if source.is_dir() and _is_same_or_inside(destination, source):
-            raise ValueError(f"Нельзя скопировать или переместить папку внутрь самой себя: {source.name}")
+            raise ValueError(
+                f"Нельзя скопировать или переместить папку внутрь самой себя: {source.name}"
+            )
 
         target = ensure_unique_path(destination / source.name)
         if source.is_dir():
@@ -152,10 +157,12 @@ def move_items(paths: Iterable[Path], destination: Path) -> list[Path]:
     moved: list[Path] = []
     for source in paths:
         source = Path(source).resolve()
-        
+
         if source.is_dir() and _is_same_or_inside(destination, source):
-            raise ValueError(f"Нельзя скопировать или переместить папку внутрь самой себя: {source.name}")
-                    
+            raise ValueError(
+                f"Нельзя скопировать или переместить папку внутрь самой себя: {source.name}"
+            )
+
         target = ensure_unique_path(destination / source.name)
         shutil.move(str(source), str(target))
         moved.append(target)

@@ -82,7 +82,11 @@ class PathBar(QFrame):
         popup = self.completer.popup()
         if popup is not None:
             popup.setObjectName("PathCompleterPopup")
-            popup.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint)
+            popup.setWindowFlags(
+                Qt.WindowType.Popup
+                | Qt.WindowType.FramelessWindowHint
+                | Qt.WindowType.NoDropShadowWindowHint
+            )
             popup.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
             popup.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         self.path_edit.textEdited.connect(self.completer.update_suggestions)

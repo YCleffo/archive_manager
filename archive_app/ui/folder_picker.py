@@ -17,8 +17,11 @@ from .icons import IconFactory
 from .tables import FileTable
 from .theme import make_interactive
 
+
 class FolderPickerDialog(QDialog):
-    def __init__(self, start_path: Path, icons: IconFactory, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, start_path: Path, icons: IconFactory, parent: QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self.icons = icons
         self.selected_path = Path(start_path).expanduser().resolve()
@@ -64,13 +67,15 @@ class FolderPickerDialog(QDialog):
         bottom_layout.addWidget(self.cancel_button)
 
         self.select_button = QPushButton("Выбрать эту папку", self)
-        self.select_button.setStyleSheet("background: #0078d4; color: white; border-color: #0078d4;")
+        self.select_button.setStyleSheet(
+            "background: #0078d4; color: white; border-color: #0078d4;"
+        )
         make_interactive(self.select_button, "Выбрать текущую директорию")
         self.select_button.clicked.connect(self.accept)
         bottom_layout.addWidget(self.select_button)
 
         layout.addLayout(bottom_layout)
-        
+
         self.load_directory(self.selected_path)
 
     def _go_up(self) -> None:
@@ -103,8 +108,9 @@ class FolderPickerDialog(QDialog):
                 return
 
             from archive_app.file_utils import FileEntry, is_hidden_or_system
+
             entries: list[FileEntry] = []
-            
+
             with os.scandir(path) as it:
                 for entry in it:
                     path_obj = Path(entry.path)
@@ -113,6 +119,7 @@ class FolderPickerDialog(QDialog):
                     try:
                         stat = entry.stat()
                         from datetime import datetime
+
                         entries.append(
                             FileEntry(
                                 path=path_obj,
