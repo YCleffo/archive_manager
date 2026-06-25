@@ -23,11 +23,11 @@ def build_document_preview(path: Path, max_size: QSize) -> PreviewResult:
                 zoom = 2.0
                 mat = fitz.Matrix(zoom, zoom)  # type: ignore
                 pix = page.get_pixmap(matrix=mat)  # type: ignore
-                image = QImage(  # type: ignore
-                    pix.samples,
-                    pix.width,
-                    pix.height,
-                    pix.stride,
+                image = QImage(
+                    pix.samples,  # type: ignore
+                    int(pix.width),  # type: ignore
+                    int(pix.height),  # type: ignore
+                    int(pix.stride),  # type: ignore
                     QImage.Format.Format_RGB888,
                 ).copy()
             doc.close()

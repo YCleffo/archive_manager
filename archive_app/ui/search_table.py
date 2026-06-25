@@ -16,7 +16,7 @@ from .table_delegates import (
     PATH_ROLE,
     SORT_ROLE,
     SortableTableWidgetItem,
-    _icon_provider,
+    icon_provider,
     configure_table,
     set_header_alignments,
 )
@@ -64,7 +64,7 @@ class SearchResultsTable(QTableWidget):
         self.insertRow(row)
 
         path_item = SortableTableWidgetItem(str(result.path))
-        path_item.setIcon(_icon_provider.icon(QFileInfo(str(result.path))))
+        path_item.setIcon(icon_provider.icon(QFileInfo(str(result.path))))
         path_item.setTextAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )

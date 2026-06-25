@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileIconProvider,
     QFrame,
-    QHeaderView,
     QProxyStyle,
     QStyle,
     QStyleOption,
@@ -31,7 +30,7 @@ from PySide6.QtWidgets import (
 
 from .icons import IconFactory
 
-_icon_provider = QFileIconProvider()
+icon_provider = QFileIconProvider()
 
 SORT_ROLE = Qt.ItemDataRole.UserRole
 PATH_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -254,7 +253,8 @@ class SizeButtonDelegate(NoFocusDelegate):
             if self._button_rect(option.rect).contains(event.position().toPoint()):
                 path_raw = index.data(SIZE_PATH_ROLE)
                 if path_raw:
-                    parent_table = self.parent()
+                    from typing import Any, cast
+                    parent_table = cast(Any, self.parent())
                     if hasattr(parent_table, "size_requested"):
                         parent_table.size_requested.emit(Path(str(path_raw)))
                         return True

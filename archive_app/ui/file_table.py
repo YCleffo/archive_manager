@@ -18,7 +18,7 @@ from .table_delegates import (
     SORT_ROLE,
     SizeButtonDelegate,
     SortableTableWidgetItem,
-    _icon_provider,
+    icon_provider,
     configure_table,
     set_header_alignments,
 )
@@ -133,7 +133,7 @@ class FileTable(QTableWidget):
         self.insertRow(row)
 
         name_item = SortableTableWidgetItem(entry.name)
-        name_item.setIcon(_icon_provider.icon(QFileInfo(str(entry.path))))
+        name_item.setIcon(icon_provider.icon(QFileInfo(str(entry.path))))
         name_item.setTextAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )

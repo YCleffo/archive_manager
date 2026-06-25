@@ -37,7 +37,7 @@ def build_audio_preview(path: Path, max_size: QSize) -> PreviewResult:
                     cover_data = bytes(cast(Any, covrs[0]))
 
         if cover_data:
-            image = QImage.fromData(cover_data)
+            image = QImage.fromData(cover_data)  # type: ignore
     except Exception:
         pass
 
