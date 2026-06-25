@@ -69,7 +69,8 @@ class ArchiveManagerApp(tk.Tk):
         style.configure("Treeview.Heading", font=("Segoe UI", 10, "bold"), padding=5, background="#e9ecef", relief="flat")
         style.map("Treeview.Heading", background=[("active", "#dee2e6")])
         
-        style.configure("Toolbar.TButton", padding=(10, 6), font=("Segoe UI", 10))
+        style.configure("TButton", padding=(4, 2), font=("Segoe UI", 10))
+        style.configure("Toolbar.TButton", padding=(4, 2), font=("Segoe UI", 10))
         style.configure("TFrame", background=bg_color)
         style.configure("TLabel", background=bg_color, font=("Segoe UI", 10))
         style.configure("TPanedwindow", background=bg_color)

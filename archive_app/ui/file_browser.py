@@ -72,7 +72,7 @@ class FileBrowserFrame(ttk.Frame):
         self.tree.delete(*self.tree.get_children())
 
     def insert_entry(self, entry) -> None:
-        icon_name = "📁 " + entry.name if entry.is_dir else "📄 " + entry.name
+        icon_name = "[Папка] " + entry.name if entry.is_dir else "[Файл] " + entry.name
         self.tree.insert(
             "",
             "end",
