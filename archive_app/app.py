@@ -74,6 +74,7 @@ class ArchiveManagerApp(QMainWindow):
 
         self.setStyleSheet(APP_STYLESHEET)
         self.app_actions = self._create_actions()
+        self.app_actions["paste"].setEnabled(False)
         self._build_layout()
         application = QApplication.instance()
         if application is not None:
@@ -269,6 +270,10 @@ class ArchiveManagerApp(QMainWindow):
         self.file_table.open_requested.connect(self.open_selected)
         self.file_table.delete_requested.connect(self.delete_selected)
         self.file_table.rename_requested.connect(self.rename_selected)
+        self.file_table.copy_requested.connect(self.copy_selected)
+        self.file_table.cut_requested.connect(self.cut_selected)
+        self.file_table.paste_requested.connect(self.paste_clipboard)
+
         self.file_table.context_menu_requested.connect(self.show_file_context_menu)
         self.file_table.size_requested.connect(self.calculate_folder_size_from_button)
         self.file_table_card = TableCard(self.file_table, central)
@@ -521,6 +526,7 @@ class ArchiveManagerApp(QMainWindow):
             return
         self._clipboard_paths = paths
         self._clipboard_is_cut = False
+        self.app_actions["paste"].setEnabled(True)
         self.set_status(f"В буфере {len(paths)} объектов (Копирование)")
 
     def cut_selected(self) -> None:
@@ -530,6 +536,7 @@ class ArchiveManagerApp(QMainWindow):
             return
         self._clipboard_paths = paths
         self._clipboard_is_cut = True
+        self.app_actions["paste"].setEnabled(True)
         self.set_status(f"В буфере {len(paths)} объектов (Вырезание)")
 
     def paste_clipboard(self) -> None:
@@ -554,6 +561,7 @@ class ArchiveManagerApp(QMainWindow):
             if is_cut:
                 self.set_status(f"Перемещено объектов: {count}")
                 self._clipboard_paths = []
+                self.app_actions["paste"].setEnabled(False)
             else:
                 self.set_status(f"Скопировано объектов: {count}")
             self.refresh()

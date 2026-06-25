@@ -50,6 +50,13 @@ QPushButton:pressed {
     border-color: #94a3b8;
 }
 
+QToolButton:disabled,
+QPushButton:disabled {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+    color: #94a3b8;
+}
+
 QToolButton::menu-indicator {
     image: none;
     width: 0;

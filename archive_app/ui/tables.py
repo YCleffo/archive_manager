@@ -15,7 +15,7 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtGui import QBrush, QColor, QKeyEvent, QMouseEvent, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QKeyEvent, QMouseEvent, QPainter, QPen, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -254,6 +254,10 @@ class FileTable(QTableWidget):
     rename_requested = Signal()
     context_menu_requested = Signal(QPoint)
     size_requested = Signal(Path)
+    selection_changed = Signal()
+    copy_requested = Signal()
+    cut_requested = Signal()
+    paste_requested = Signal()
 
     def __init__(self, icons: IconFactory, parent: QWidget | None = None) -> None:
         super().__init__(0, 4, parent)
@@ -313,6 +317,15 @@ class FileTable(QTableWidget):
         return paths
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.matches(QKeySequence.StandardKey.Copy):
+            self.copy_requested.emit()
+            return
+        if event.matches(QKeySequence.StandardKey.Cut):
+            self.cut_requested.emit()
+            return
+        if event.matches(QKeySequence.StandardKey.Paste):
+            self.paste_requested.emit()
+            return
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self.open_requested.emit()
             return
