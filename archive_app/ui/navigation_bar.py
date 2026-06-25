@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtWidgets import (
+    QCompleter,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -13,6 +14,47 @@ from PySide6.QtWidgets import (
 from .icons import IconFactory
 from .theme import make_interactive
 
+
+import os
+from PySide6.QtCore import QStringListModel
+
+class PathCompleter(QCompleter):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.string_list_model = QStringListModel()
+        self.setModel(self.string_list_model)
+        self.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.setMaxVisibleItems(10)
+        self.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+
+    def update_suggestions(self, text: str) -> None:
+        if not text:
+            self.string_list_model.setStringList([])
+            return
+            
+        text = text.replace("/", "\\")
+        if text.endswith("\\"):
+            dir_path = text
+        else:
+            dir_path = os.path.dirname(text)
+            if not dir_path.endswith("\\") and dir_path:
+                dir_path += "\\"
+                
+        if not dir_path or not os.path.isdir(dir_path):
+            self.string_list_model.setStringList([])
+            return
+
+        try:
+            suggestions = []
+            with os.scandir(dir_path) as it:
+                for entry in it:
+                    if entry.is_dir():
+                        suggestions.append(os.path.join(dir_path, entry.name) + "\\")
+                    else:
+                        suggestions.append(os.path.join(dir_path, entry.name))
+            self.string_list_model.setStringList(suggestions)
+        except OSError:
+            self.string_list_model.setStringList([])
 
 class PathBar(QFrame):
     navigate_requested = Signal(str)
@@ -34,13 +76,9 @@ class PathBar(QFrame):
         self.path_edit.setToolTip("Введите путь к папке и нажмите Enter")
         self.path_edit.returnPressed.connect(self._emit_navigate)
 
-        from PySide6.QtWidgets import QCompleter, QFileSystemModel
-        self.completer_model = QFileSystemModel(self)
-        self.completer_model.setRootPath("")
-        self.completer = QCompleter(self.completer_model, self)
-        self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self.completer.setMaxVisibleItems(10)
+        self.completer = PathCompleter(self)
         self.path_edit.setCompleter(self.completer)
+        self.path_edit.textEdited.connect(self.completer.update_suggestions)
 
         layout.addWidget(self.path_edit, 1)
 
