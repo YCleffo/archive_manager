@@ -38,9 +38,9 @@ PATH_ROLE = Qt.ItemDataRole.UserRole + 1
 HOVER_ROLE = Qt.ItemDataRole.UserRole + 2
 SIZE_BUTTON_ROLE = Qt.ItemDataRole.UserRole + 3
 SIZE_PATH_ROLE = Qt.ItemDataRole.UserRole + 4
-HOVER_ROW_COLOR = QColor("#f4f7fb")
+HOVER_ROW_COLOR = QColor("#e6f0ff")
 BUTTON_BG_COLOR = QColor("#ffffff")
-BUTTON_HOVER_BG_COLOR = QColor("#f3f7fb")
+BUTTON_HOVER_BG_COLOR = QColor("#ffffff")
 BUTTON_BORDER_COLOR = QColor("#cfd8e3")
 BUTTON_TEXT_COLOR = QColor("#425466")
 
