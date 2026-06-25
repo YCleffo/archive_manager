@@ -63,6 +63,7 @@ class ActionBar(QFrame):
         self, actions: Mapping[str, QAction], icons: IconFactory
     ) -> QToolButton:
         menu = QMenu(self)
+        menu.setWindowFlag(Qt.WindowType.NoDropShadowWindowHint, True)
         for key in ("undo", "rename", "zip", "extract", "preview", "size"):
             menu.addAction(actions[key])
 

@@ -689,6 +689,7 @@ class ArchiveManagerApp(QMainWindow):
 
     def show_file_context_menu(self, pos: QPoint) -> None:
         menu = QMenu(self)
+        menu.setWindowFlag(Qt.WindowType.NoDropShadowWindowHint, True)
         for key in ("open", "preview"):
             menu.addAction(self.app_actions[key])
         menu.addSeparator()

@@ -12,7 +12,7 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtGui import QBrush, QColor, QKeyEvent, QPainter
+from PySide6.QtGui import QBrush, QColor, QKeyEvent, QMouseEvent, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -36,6 +36,7 @@ from .theme import make_interactive
 SORT_ROLE = Qt.ItemDataRole.UserRole
 PATH_ROLE = Qt.ItemDataRole.UserRole + 1
 HOVER_ROLE = Qt.ItemDataRole.UserRole + 2
+HOVER_ROW_COLOR = QColor("#f4f7fb")
 
 
 class SortableTableWidgetItem(QTableWidgetItem):
@@ -60,11 +61,13 @@ class NoFocusDelegate(QStyledItemDelegate):
         clean_option = QStyleOptionViewItem(option)
         clean_option.state &= ~QStyle.StateFlag.State_HasFocus
         clean_option.state &= ~QStyle.StateFlag.State_MouseOver
+        parent_table = self.parent()
+        hovered_row = getattr(parent_table, "hovered_row", -1)
         if (
-            index.data(HOVER_ROLE)
+            index.row() == hovered_row
             and not clean_option.state & QStyle.StateFlag.State_Selected
         ):
-            clean_option.backgroundBrush = QBrush(QColor("#eef5ff"))
+            clean_option.backgroundBrush = QBrush(HOVER_ROW_COLOR)
         super().paint(painter, clean_option, index)
 
 
@@ -110,7 +113,7 @@ class FileTable(QTableWidget):
             {
                 0: Qt.AlignmentFlag.AlignLeft,
                 1: Qt.AlignmentFlag.AlignLeft,
-                2: Qt.AlignmentFlag.AlignRight,
+                2: Qt.AlignmentFlag.AlignLeft,
                 3: Qt.AlignmentFlag.AlignLeft,
             },
         )
@@ -121,8 +124,7 @@ class FileTable(QTableWidget):
             self.open_requested.emit()
 
         self.cellDoubleClicked.connect(on_cell_double_clicked)
-        self.itemEntered.connect(self._on_item_entered)
-        self.viewport().installEventFilter(self)
+        self.cellEntered.connect(self._on_cell_entered)
 
     def set_entries(self, entries: list[FileEntry]) -> None:
         self.setSortingEnabled(False)
@@ -159,12 +161,14 @@ class FileTable(QTableWidget):
 
         name_item = SortableTableWidgetItem(entry.name)
         name_item.setIcon(self.icons.icon("folder" if entry.is_dir else "file"))
+        name_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         name_item.setData(
             SORT_ROLE, f"{0 if entry.is_dir else 1}|{entry.name.casefold()}"
         )
         name_item.setData(PATH_ROLE, str(entry.path))
 
         kind_item = SortableTableWidgetItem(entry.kind)
+        kind_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         kind_item.setData(SORT_ROLE, entry.kind.casefold())
 
         size_item = SortableTableWidgetItem(format_size(entry.size))
@@ -174,6 +178,9 @@ class FileTable(QTableWidget):
         size_item.setData(SORT_ROLE, -1 if entry.size is None else entry.size)
 
         modified_item = SortableTableWidgetItem(format_modified(entry.modified))
+        modified_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         modified_item.setData(
             SORT_ROLE, 0 if entry.modified is None else entry.modified.timestamp()
         )
@@ -211,7 +218,7 @@ class FileTable(QTableWidget):
         wrapper.setProperty("rowIndex", row)
         wrapper.installEventFilter(self)
         layout = QHBoxLayout(wrapper)
-        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setContentsMargins(4, 3, 4, 3)
         layout.setSpacing(0)
 
         button = QPushButton("Посчитать", wrapper)
@@ -229,17 +236,26 @@ class FileTable(QTableWidget):
         layout.addWidget(button, alignment=Qt.AlignmentFlag.AlignCenter)
         self.setCellWidget(row, 2, wrapper)
 
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        index = self.indexAt(event.position().toPoint())
+        self._set_hovered_row(index.row() if index.isValid() else -1)
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event: QEvent) -> None:
+        self._set_hovered_row(-1)
+        super().leaveEvent(event)
+
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if watched == self.viewport() and event.type() == QEvent.Type.Leave:
-            self._set_hovered_row(-1)
-        elif event.type() == QEvent.Type.Enter and hasattr(watched, "property"):
+        if event.type() == QEvent.Type.Enter and hasattr(watched, "property"):
             row = watched.property("rowIndex")
             if isinstance(row, int):
                 self._set_hovered_row(row)
+        elif event.type() == QEvent.Type.Leave and hasattr(watched, "property"):
+            self._set_hovered_row(-1)
         return super().eventFilter(watched, event)
 
-    def _on_item_entered(self, item: QTableWidgetItem) -> None:
-        self._set_hovered_row(item.row())
+    def _on_cell_entered(self, row: int, _column: int) -> None:
+        self._set_hovered_row(row)
 
     def _set_hovered_row(self, row: int) -> None:
         if row == self.hovered_row:
@@ -263,6 +279,9 @@ class FileTable(QTableWidget):
             widget.setProperty("rowHover", active)
             widget.style().unpolish(widget)
             widget.style().polish(widget)
+        top_left = self.model().index(row, 0)
+        bottom_right = self.model().index(row, self.columnCount() - 1)
+        self.viewport().update(self.visualRect(top_left).united(self.visualRect(bottom_right)))
 
     def _show_context_menu(self, pos: QPoint) -> None:
         index = self.indexAt(pos)
@@ -295,7 +314,7 @@ class SearchResultsTable(QTableWidget):
                 0: Qt.AlignmentFlag.AlignLeft,
                 1: Qt.AlignmentFlag.AlignLeft,
                 2: Qt.AlignmentFlag.AlignLeft,
-                3: Qt.AlignmentFlag.AlignRight,
+                3: Qt.AlignmentFlag.AlignLeft,
                 4: Qt.AlignmentFlag.AlignLeft,
             },
         )
@@ -304,8 +323,7 @@ class SearchResultsTable(QTableWidget):
             self.open_requested.emit()
 
         self.cellDoubleClicked.connect(on_search_cell_double_clicked)
-        self.itemEntered.connect(self._on_item_entered)
-        self.viewport().installEventFilter(self)
+        self.cellEntered.connect(self._on_cell_entered)
 
     def add_result(self, result: SearchResult) -> None:
         sorting = self.isSortingEnabled()
@@ -316,13 +334,18 @@ class SearchResultsTable(QTableWidget):
 
         path_item = SortableTableWidgetItem(str(result.path))
         path_item.setIcon(self.icons.icon("folder" if result.path.is_dir() else "file"))
+        path_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         path_item.setData(SORT_ROLE, str(result.path).casefold())
         path_item.setData(PATH_ROLE, str(result.path))
 
         match_item = SortableTableWidgetItem(result.match_type)
+        match_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         match_item.setData(SORT_ROLE, result.match_type)
 
         kind_item = SortableTableWidgetItem(result.kind)
+        kind_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         kind_item.setData(SORT_ROLE, result.kind.casefold())
 
         size_item = SortableTableWidgetItem(format_size(result.size))
@@ -332,6 +355,9 @@ class SearchResultsTable(QTableWidget):
         size_item.setData(SORT_ROLE, -1 if result.size is None else result.size)
 
         modified_item = SortableTableWidgetItem(format_modified(result.modified))
+        modified_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
         modified_item.setData(
             SORT_ROLE, 0 if result.modified is None else result.modified.timestamp()
         )
@@ -358,13 +384,17 @@ class SearchResultsTable(QTableWidget):
             return
         super().keyPressEvent(event)
 
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if watched == self.viewport() and event.type() == QEvent.Type.Leave:
-            self._set_hovered_row(-1)
-        return super().eventFilter(watched, event)
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        index = self.indexAt(event.position().toPoint())
+        self._set_hovered_row(index.row() if index.isValid() else -1)
+        super().mouseMoveEvent(event)
 
-    def _on_item_entered(self, item: QTableWidgetItem) -> None:
-        self._set_hovered_row(item.row())
+    def leaveEvent(self, event: QEvent) -> None:
+        self._set_hovered_row(-1)
+        super().leaveEvent(event)
+
+    def _on_cell_entered(self, row: int, _column: int) -> None:
+        self._set_hovered_row(row)
 
     def _set_hovered_row(self, row: int) -> None:
         if row == self.hovered_row:
@@ -383,6 +413,9 @@ class SearchResultsTable(QTableWidget):
             item = self.item(row, column)
             if item is not None:
                 item.setData(HOVER_ROLE, active)
+        top_left = self.model().index(row, 0)
+        bottom_right = self.model().index(row, self.columnCount() - 1)
+        self.viewport().update(self.visualRect(top_left).united(self.visualRect(bottom_right)))
 
 
 def configure_table(table: QTableWidget, multi_select: bool) -> None:

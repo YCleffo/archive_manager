@@ -75,7 +75,7 @@ QWidget#SizeCell {
 }
 
 QWidget#SizeCell[rowHover="true"] {
-    background: #eef5ff;
+    background: #f5f8fc;
 }
 
 QLineEdit {
