@@ -36,7 +36,9 @@ def build_video_preview(path: Path, max_size: QSize) -> PreviewResult:
     )
 
 
-def extract_video_frame(path: Path, max_size: QSize) -> tuple[QImage | None, str | None]:
+def extract_video_frame(
+    path: Path, max_size: QSize
+) -> tuple[QImage | None, str | None]:
     ffmpeg = get_ffmpeg_path()
     if ffmpeg is None:
         return (
@@ -98,7 +100,10 @@ def extract_video_frame(path: Path, max_size: QSize) -> tuple[QImage | None, str
             )
             continue
 
-        if image.size().width() > max_size.width() or image.size().height() > max_size.height():
+        if (
+            image.size().width() > max_size.width()
+            or image.size().height() > max_size.height()
+        ):
             image = image.scaled(
                 max_size,
                 Qt.AspectRatioMode.KeepAspectRatio,

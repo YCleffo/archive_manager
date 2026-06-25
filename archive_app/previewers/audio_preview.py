@@ -38,6 +38,7 @@ def build_audio_preview(path: Path, max_size: QSize) -> PreviewResult:
 
         if cover_data:
             from PySide6.QtCore import QByteArray
+
             image = QImage.fromData(QByteArray(cover_data))  # type: ignore
     except Exception:
         pass

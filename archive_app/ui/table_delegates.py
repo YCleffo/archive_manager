@@ -116,9 +116,10 @@ class SortableTableWidgetItem(QTableWidgetItem):
         right = other.data(SORT_ROLE)
         if isinstance(left, (int, float)) and isinstance(right, (int, float)):
             return left < right
-        return str(left if left is not None else self.text()).casefold() < str(
-            right if right is not None else other.text()
-        ).casefold()
+        return (
+            str(left if left is not None else self.text()).casefold()
+            < str(right if right is not None else other.text()).casefold()
+        )
 
 
 class NoFocusDelegate(QStyledItemDelegate):
@@ -254,6 +255,7 @@ class SizeButtonDelegate(NoFocusDelegate):
                 path_raw = index.data(SIZE_PATH_ROLE)
                 if path_raw:
                     from typing import Any, cast
+
                     parent_table = cast(Any, self.parent())
                     if hasattr(parent_table, "size_requested"):
                         parent_table.size_requested.emit(Path(str(path_raw)))

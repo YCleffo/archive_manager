@@ -179,7 +179,10 @@ class FileTable(QTableWidget):
         normalized = str(Path(path).resolve())
         for row in range(self.rowCount()):
             item = self.item(row, 0)
-            if item is not None and str(Path(str(item.data(PATH_ROLE))).resolve()) == normalized:
+            if (
+                item is not None
+                and str(Path(str(item.data(PATH_ROLE))).resolve()) == normalized
+            ):
                 size_item = self.item(row, 2)
                 if size_item is None:
                     size_item = SortableTableWidgetItem()
