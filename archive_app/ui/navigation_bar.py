@@ -33,6 +33,15 @@ class PathBar(QFrame):
         self.path_edit.setMinimumHeight(34)
         self.path_edit.setToolTip("Введите путь к папке и нажмите Enter")
         self.path_edit.returnPressed.connect(self._emit_navigate)
+
+        from PySide6.QtWidgets import QCompleter, QFileSystemModel
+        self.completer_model = QFileSystemModel(self)
+        self.completer_model.setRootPath("")
+        self.completer = QCompleter(self.completer_model, self)
+        self.completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self.completer.setMaxVisibleItems(10)
+        self.path_edit.setCompleter(self.completer)
+
         layout.addWidget(self.path_edit, 1)
 
         go_button = QToolButton(self)

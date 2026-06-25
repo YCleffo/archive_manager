@@ -840,6 +840,13 @@ class ArchiveManagerApp(QMainWindow):
 def main() -> None:
     _write_pid_file()
     app = QApplication(sys.argv)
+    
+    from PySide6.QtCore import QTranslator, QLibraryInfo
+    translator = QTranslator(app)
+    path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    if translator.load("qtbase_ru.qm", path) or translator.load("qt_ru.qm", path):
+        app.installTranslator(translator)
+        
     app.setApplicationName("Менеджер архивов")
     window = ArchiveManagerApp()
     window.show()
