@@ -576,18 +576,9 @@ class ArchiveManagerApp(QMainWindow):
             )
             return
 
+        from archive_app.file_utils import ensure_unique_path
         default_name = "архив.zip" if len(paths) != 1 else f"{paths[0].stem}.zip"
-        output, _filter = QFileDialog.getSaveFileName(
-            self,
-            "Сохранить ZIP",
-            str(self.current_path / default_name),
-            "ZIP-архив (*.zip)",
-        )
-        if not output:
-            return
-        output_path = Path(output)
-        if output_path.suffix.lower() != ".zip":
-            output_path = output_path.with_suffix(".zip")
+        output_path = ensure_unique_path(self.current_path / default_name)
 
         def task(status: Callable[[str], None]) -> Path:
             status("Создание архива...")
@@ -615,22 +606,13 @@ class ArchiveManagerApp(QMainWindow):
     def extract_selected_archive(self) -> None:
         path = self.get_selected_path()
         if path is None or not path.is_file() or not is_supported_archive(path):
-            selected, _filter = QFileDialog.getOpenFileName(
-                self,
-                "Выберите архив",
-                str(self.current_path),
-                "Архивы (*.zip *.tar *.tar.gz *.tgz *.tar.bz2);;Все файлы (*.*)",
+            QMessageBox.information(
+                self, "Распаковка", "Выберите архив для распаковки"
             )
-            if not selected:
-                return
-            path = Path(selected)
-
-        destination = QFileDialog.getExistingDirectory(
-            self, "Куда распаковать?", str(path.parent)
-        )
-        if not destination:
             return
-        destination_path = Path(destination)
+
+        from archive_app.file_utils import ensure_unique_path
+        destination_path = ensure_unique_path(self.current_path / path.stem)
 
         def task(status: Callable[[str], None]) -> tuple[Path, Path]:
             status("Распаковка архива...")
