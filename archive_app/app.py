@@ -481,38 +481,7 @@ class ArchiveManagerApp(QMainWindow):
                 self.go_forward()
                 return True
 
-        if (
-            event.type() == QEvent.Type.Show
-            and isinstance(watched, QWidget)
-            and watched.isWindow()
-            and not isinstance(watched, QMenu)
-        ):
-            flags = watched.windowFlags()
-            if flags & Qt.WindowType.ToolTip:
-                from PySide6.QtCore import QTimer
 
-                def fix_pos(w: QWidget = watched) -> None:
-                    try:
-                        window_rect = self.geometry()
-                        w_rect = w.geometry()
-                        new_pos = w_rect.topLeft()
-
-                        if new_pos.x() + w_rect.width() > window_rect.right():
-                            new_pos.setX(window_rect.right() - w_rect.width())
-                        if new_pos.y() + w_rect.height() > window_rect.bottom():
-                            new_pos.setY(window_rect.bottom() - w_rect.height())
-
-                        if new_pos.x() < window_rect.left():
-                            new_pos.setX(window_rect.left())
-                        if new_pos.y() < window_rect.top():
-                            new_pos.setY(window_rect.top())
-
-                        if new_pos != w_rect.topLeft():
-                            w.move(new_pos)
-                    except RuntimeError:
-                        pass
-
-                QTimer.singleShot(0, fix_pos)
 
         return super().eventFilter(watched, event)
 

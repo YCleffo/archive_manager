@@ -248,6 +248,11 @@ class ActionBar(QFrame):
             button.setDown(False)
 
         menu.aboutToHide.connect(release_button)
-        position = button.mapToGlobal(button.rect().bottomLeft())
+        
+        # Вычисляем позицию так, чтобы правый край меню совпадал с правым краем кнопки
+        menu.adjustSize()
+        position = button.mapToGlobal(button.rect().bottomRight())
+        position.setX(position.x() - menu.width())
+        
         menu.exec(position)
         button.setDown(False)

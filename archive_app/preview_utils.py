@@ -81,11 +81,13 @@ def _bundle_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def build_preview(path: Path, max_size: QSize = PREVIEW_MAX_SIZE) -> PreviewResult:
-    path = Path(path).expanduser().resolve()
-    if not path.exists():
-        return PreviewResult(path, path.name, "Файл уже не существует.")
+from functools import lru_cache
 
+@lru_cache(maxsize=16)
+def _cached_build_preview(path_str: str, mtime: float, width: int, height: int) -> PreviewResult:
+    path = Path(path_str)
+    max_size = QSize(width, height)
+    
     if path.is_dir():
         return _build_info_preview(path, "Папка")
 
@@ -98,6 +100,15 @@ def build_preview(path: Path, max_size: QSize = PREVIEW_MAX_SIZE) -> PreviewResu
 
     mime, _ = mimetypes.guess_type(str(path))
     return _build_info_preview(path, mime or "Файл")
+
+
+def build_preview(path: Path, max_size: QSize = PREVIEW_MAX_SIZE) -> PreviewResult:
+    path = Path(path).expanduser().resolve()
+    if not path.exists():
+        return PreviewResult(path, path.name, "Файл уже не существует.")
+
+    mtime = path.stat().st_mtime
+    return _cached_build_preview(str(path), mtime, max_size.width(), max_size.height())
 
 
 def _build_image_preview(path: Path, max_size: QSize) -> PreviewResult:
