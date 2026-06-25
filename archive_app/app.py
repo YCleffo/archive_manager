@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRunnable, Qt, QThreadPool
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QKeySequence, QMouseEvent
 from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QVBoxLayout, QWidget
 
 from .archive_utils import create_zip_archive, extract_archive, is_supported_archive, list_archive_members
@@ -134,7 +134,7 @@ class ArchiveManagerApp(QMainWindow):
         self.statusBar().showMessage(text)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if event.type() == QEvent.Type.MouseButtonPress and hasattr(event, "button"):
+        if event.type() == QEvent.Type.MouseButtonPress and isinstance(event, QMouseEvent):
             button = event.button()
             if button == Qt.MouseButton.BackButton:
                 self.go_back()
@@ -236,7 +236,13 @@ class ArchiveManagerApp(QMainWindow):
             return
         try:
             renamed = rename_item(path, new_name)
-            self._push_undo(f"переименование {renamed.name}", lambda source=renamed, target=path: source.rename(target))
+
+            def make_undo(source: Path, target: Path) -> Callable[[], None]:
+                def undo() -> None:
+                    source.rename(target)
+                return undo
+
+            self._push_undo(f"переименование {renamed.name}", make_undo(renamed, path))
             self.refresh()
             self.set_status(f"Переименовано: {renamed.name}")
         except Exception as exc:
@@ -374,8 +380,8 @@ class ArchiveManagerApp(QMainWindow):
             return
         self.calculate_folder_size_for_path(path, show_dialog=True)
 
-    def calculate_folder_size_from_button(self, path: object) -> None:
-        self.calculate_folder_size_for_path(Path(path), show_dialog=False)
+    def calculate_folder_size_from_button(self, path: Path) -> None:
+        self.calculate_folder_size_for_path(path, show_dialog=False)
 
     def calculate_folder_size_for_path(self, path: Path, show_dialog: bool) -> None:
         def task(status: Callable[[str], None]) -> tuple[Path, int, int]:

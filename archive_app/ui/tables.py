@@ -54,7 +54,7 @@ class FileTable(QTableWidget):
     delete_requested = Signal()
     rename_requested = Signal()
     context_menu_requested = Signal(QPoint)
-    size_requested = Signal(object)
+    size_requested = Signal(Path)
 
     def __init__(self, icons: IconFactory, parent: QWidget | None = None) -> None:
         super().__init__(0, 4, parent)
@@ -64,7 +64,8 @@ class FileTable(QTableWidget):
         configure_table(self, multi_select=True)
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        self.setColumnWidth(2, 120)
         self.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         set_header_alignments(
             self,
