@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QAbstractButton
 
 APP_STYLESHEET = """
-QMainWindow {
+QMainWindow, QDialog, QMessageBox {
     background: #f5f7fa;
 }
 

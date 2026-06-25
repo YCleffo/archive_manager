@@ -260,7 +260,7 @@ class FileTable(QTableWidget):
         self.icons = icons
         self.hovered_row = -1
         self.setObjectName("FileTable")
-        self.setHorizontalHeaderLabels(["Имя", "Тип", "Размер", "Изменён"])
+        self.setHorizontalHeaderLabels(["Имя", "Тип", "Размер", "Дата изменения"])
         configure_table(self, multi_select=True)
         self.setItemDelegateForColumn(2, SizeButtonDelegate(self))
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
@@ -446,7 +446,7 @@ class SearchResultsTable(QTableWidget):
         self.icons = icons
         self.hovered_row = -1
         self.setHorizontalHeaderLabels(
-            ["Результат", "Совпадение", "Тип", "Размер", "Изменён"]
+            ["Результат", "Совпадение", "Тип", "Размер", "Дата изменения"]
         )
         configure_table(self, multi_select=False)
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)

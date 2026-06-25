@@ -37,7 +37,7 @@ def format_size(size: int | None) -> str:
 def format_modified(dt: datetime | None) -> str:
     if dt is None:
         return ""
-    return dt.strftime("%Y-%m-%d %H:%M")
+    return dt.strftime("%d.%m.%Y %H:%M")
 
 
 def list_directory(path: Path) -> list[FileEntry]:
