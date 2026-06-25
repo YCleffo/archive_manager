@@ -38,6 +38,7 @@ class ActionBar(QFrame):
             layout.addWidget(self._button(actions[key]))
 
         layout.addStretch(1)
+        layout.addWidget(self._button(actions["toggle_preview_panel"]))
         layout.addWidget(self._button(actions["search"]))
         layout.addWidget(self._more_button(actions, icons))
 

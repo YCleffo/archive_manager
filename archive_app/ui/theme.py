@@ -311,9 +311,13 @@ QLabel#PreviewName {
     font-weight: 700;
 }
 
-QLabel#PreviewDetails {
+QPlainTextEdit#PreviewDetailsText {
+    background: transparent;
     color: #4b5563;
-    line-height: 140%;
+    border: none;
+    padding: 0;
+    selection-background-color: #dbeafe;
+    selection-color: #152033;
 }
 
 QPushButton#PreviewOpenButton {

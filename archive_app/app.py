@@ -147,6 +147,14 @@ class ArchiveManagerApp(QMainWindow):
                 "Ctrl+F",
             ),
             (
+                "toggle_preview_panel",
+                "Скрыть превью",
+                "preview",
+                "Показать или скрыть панель предпросмотра",
+                self.toggle_preview_panel,
+                None,
+            ),
+            (
                 "undo",
                 "Отменить",
                 "undo",
@@ -260,6 +268,10 @@ class ArchiveManagerApp(QMainWindow):
             action.triggered.connect(on_triggered)
             self.addAction(action)
             actions[key] = action
+
+        preview_action = actions["toggle_preview_panel"]
+        preview_action.setCheckable(True)
+        preview_action.setChecked(True)
         return actions
 
     def _build_layout(self) -> None:
@@ -294,14 +306,14 @@ class ArchiveManagerApp(QMainWindow):
         self.preview_panel = PreviewPanel(central)
         self.preview_panel.open_button.clicked.connect(self.open_in_system_selected)
 
-        content_splitter = QSplitter(Qt.Orientation.Horizontal, central)
-        content_splitter.setObjectName("ContentSplitter")
-        content_splitter.addWidget(self.file_table_card)
-        content_splitter.addWidget(self.preview_panel)
-        content_splitter.setStretchFactor(0, 1)
-        content_splitter.setStretchFactor(1, 0)
-        content_splitter.setSizes([920, 340])
-        layout.addWidget(content_splitter, 1)
+        self.content_splitter = QSplitter(Qt.Orientation.Horizontal, central)
+        self.content_splitter.setObjectName("ContentSplitter")
+        self.content_splitter.addWidget(self.file_table_card)
+        self.content_splitter.addWidget(self.preview_panel)
+        self.content_splitter.setStretchFactor(0, 1)
+        self.content_splitter.setStretchFactor(1, 0)
+        self.content_splitter.setSizes([920, 340])
+        layout.addWidget(self.content_splitter, 1)
 
         self.search_panel = SearchPanel(self.icons, central)
         self.search_panel.start_requested.connect(self.start_search)
@@ -354,6 +366,10 @@ class ArchiveManagerApp(QMainWindow):
         self.update_preview_for_selection()
 
     def update_preview_for_selection(self) -> None:
+        if not self.preview_panel.isVisible():
+            self.preview_generation += 1
+            return
+
         paths = self.get_selected_paths()
         total, files, folders = self._count_paths(paths)
 
@@ -381,7 +397,9 @@ class ArchiveManagerApp(QMainWindow):
             self.preview_panel.set_result(result)
             self.update_selection_status()
 
-        def on_error(error: str, gen: int = generation, preview_path: Path = path) -> None:
+        def on_error(
+            error: str, gen: int = generation, preview_path: Path = path
+        ) -> None:
             if gen != self.preview_generation:
                 return
             fallback = PreviewResult(
@@ -586,7 +604,9 @@ class ArchiveManagerApp(QMainWindow):
                 return
 
             open_in_system(path)
-            self.set_status_with_context(f"Открыто в стандартной программе: {path.name}")
+            self.set_status_with_context(
+                f"Открыто в стандартной программе: {path.name}"
+            )
         except Exception as exc:
             QMessageBox.critical(self, "Ошибка", f"Не удалось открыть:\n{exc}")
 
@@ -854,6 +874,27 @@ class ArchiveManagerApp(QMainWindow):
                 f"Папка: {path.name}\nРазмер: {format_size(total_size)}\nФайлов: {total_files}",
             )
         self.set_status(f"Размер {path.name}: {format_size(total_size)}")
+
+    def toggle_preview_panel(self) -> None:
+        action = self.app_actions["toggle_preview_panel"]
+        is_visible = action.isChecked()
+        self.preview_panel.setVisible(is_visible)
+        if is_visible:
+            action.setText("Скрыть превью")
+            action.setToolTip("Скрыть панель предпросмотра")
+            action.setStatusTip("Скрыть панель предпросмотра")
+            if hasattr(self, "content_splitter"):
+                sizes = self.content_splitter.sizes()
+                if len(sizes) == 2 and sizes[1] <= 0:
+                    self.content_splitter.setSizes([920, 340])
+            self.update_preview_for_selection()
+            self.set_status_with_context("Панель превью показана")
+        else:
+            action.setText("Показать превью")
+            action.setToolTip("Показать панель предпросмотра")
+            action.setStatusTip("Показать панель предпросмотра")
+            self.preview_generation += 1
+            self.set_status_with_context("Панель превью скрыта")
 
     def toggle_search_panel(self) -> None:
         if self.search_panel.isVisible():
