@@ -35,6 +35,9 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
+    QProxyStyle,
+    QStyleOptionHeader,
+    QStyleOption,
 )
 
 from ..file_utils import FileEntry, format_modified, format_size
@@ -52,6 +55,35 @@ BUTTON_BG_COLOR = QColor("#ffffff")
 BUTTON_HOVER_BG_COLOR = QColor("#ffffff")
 BUTTON_BORDER_COLOR = QColor("#cfd8e3")
 BUTTON_TEXT_COLOR = QColor("#425466")
+
+
+class SortArrowStyle(QProxyStyle):
+    def __init__(self, icons: IconFactory) -> None:
+        super().__init__()
+        self.icons = icons
+
+    def drawPrimitive(
+        self,
+        element: QStyle.PrimitiveElement,
+        option: QStyleOption,
+        painter: QPainter,
+        widget: QWidget | None = None,
+    ) -> None:
+        if element == QStyle.PrimitiveElement.PE_IndicatorHeaderArrow:
+            if isinstance(option, QStyleOptionHeader):
+                if option.sortIndicator == QStyleOptionHeader.SortIndicator.SortUp:
+                    icon = self.icons.icon("sort-up")
+                elif option.sortIndicator == QStyleOptionHeader.SortIndicator.SortDown:
+                    icon = self.icons.icon("sort-down")
+                else:
+                    return
+                center = option.rect.center()
+                size = 18
+                draw_rect = QRect(0, 0, size, size)
+                draw_rect.moveCenter(center)
+                icon.paint(painter, draw_rect, Qt.AlignmentFlag.AlignCenter)
+            return
+        super().drawPrimitive(element, option, painter, widget)
 
 
 class SortableTableWidgetItem(QTableWidgetItem):
@@ -623,6 +655,10 @@ def configure_table(table: QTableWidget, multi_select: bool) -> None:
     table.horizontalHeader().setDefaultAlignment(
         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
     )
+    table.horizontalHeader().setSortIndicatorShown(True)
+    if hasattr(table, "icons"):
+        icons = cast(IconFactory, getattr(table, "icons"))
+        table.horizontalHeader().setStyle(SortArrowStyle(icons))
     table.setItemDelegate(NoFocusDelegate(table))
     table.setMouseTracking(True)
     table.viewport().setMouseTracking(True)
