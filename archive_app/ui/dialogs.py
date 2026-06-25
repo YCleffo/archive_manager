@@ -24,5 +24,6 @@ class ArchivePreviewDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, self)
         buttons.rejected.connect(self.reject)
         close_button = buttons.button(QDialogButtonBox.StandardButton.Close)
+        close_button.setText("Закрыть")
         make_interactive(close_button, "Закрыть окно просмотра содержимого архива")
         layout.addWidget(buttons)

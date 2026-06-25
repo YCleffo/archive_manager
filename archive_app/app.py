@@ -50,7 +50,7 @@ from .ui.workers import OperationWorker, SearchWorker
 class ArchiveManagerApp(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Archive Manager")
+        self.setWindowTitle("Файловый менеджер (Архиватор)")
         self.resize(1360, 820)
         self.setMinimumSize(1040, 680)
 
@@ -478,12 +478,12 @@ class ArchiveManagerApp(QMainWindow):
             )
             return
 
-        default_name = "archive.zip" if len(paths) != 1 else f"{paths[0].stem}.zip"
+        default_name = "архив.zip" if len(paths) != 1 else f"{paths[0].stem}.zip"
         output, _filter = QFileDialog.getSaveFileName(
             self,
             "Сохранить ZIP",
             str(self.current_path / default_name),
-            "ZIP archive (*.zip)",
+            "ZIP-архив (*.zip)",
         )
         if not output:
             return
@@ -521,7 +521,7 @@ class ArchiveManagerApp(QMainWindow):
                 self,
                 "Выберите архив",
                 str(self.current_path),
-                "Archives (*.zip *.tar *.tar.gz *.tgz *.tar.bz2);;All files (*.*)",
+                "Архивы (*.zip *.tar *.tar.gz *.tgz *.tar.bz2);;Все файлы (*.*)",
             )
             if not selected:
                 return
@@ -774,7 +774,7 @@ class ArchiveManagerApp(QMainWindow):
 
 def main() -> None:
     app = QApplication(sys.argv)
-    app.setApplicationName("Archive Manager")
+    app.setApplicationName("Менеджер архивов")
     window = ArchiveManagerApp()
     window.show()
     sys.exit(app.exec())
