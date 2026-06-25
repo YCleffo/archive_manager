@@ -1,13 +1,13 @@
 import tkinter as tk
 from tkinter import ttk
-from typing import Callable
+from typing import Callable, Any
 from pathlib import Path
 from .scroll import AutoScrollbar
 from ..file_utils import format_size, format_modified
 from ..search_utils import SearchResult
 
 class SearchPanelFrame(ttk.Frame):
-    def __init__(self, master: tk.Misc, callbacks: dict[str, Callable]) -> None:
+    def __init__(self, master: tk.Misc, callbacks: dict[str, Callable[..., Any]]) -> None:
         super().__init__(master)
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
@@ -26,12 +26,17 @@ class SearchPanelFrame(ttk.Frame):
         self.ext_entry = ttk.Entry(search_bar, textvariable=self.ext_var, width=18)
         self.ext_entry.grid(row=0, column=3)
 
+        def get_cmd(name: str) -> Callable[[], Any]:
+            cmd = callbacks.get(name)
+            return cmd if cmd is not None else lambda: None
+
         self.content_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(search_bar, text="Искать внутри файлов", variable=self.content_var, cursor="hand2").grid(row=0, column=4, padx=(8, 2))
-        ttk.Button(search_bar, text="Найти", command=callbacks.get("start_search"), cursor="hand2").grid(row=0, column=5, padx=2)
-        ttk.Button(search_bar, text="Стоп", command=callbacks.get("stop_search"), cursor="hand2").grid(row=0, column=6, padx=2)
+        ttk.Button(search_bar, text="Найти", command=get_cmd("start_search"), cursor="hand2").grid(row=0, column=5, padx=2)
+        ttk.Button(search_bar, text="Стоп", command=get_cmd("stop_search"), cursor="hand2").grid(row=0, column=6, padx=2)
 
-        self.search_entry.bind("<Return>", lambda _e: callbacks.get("start_search")() if callbacks.get("start_search") else None)
+        start_search_cmd = get_cmd("start_search")
+        self.search_entry.bind("<Return>", lambda _e: start_search_cmd())
 
         self.tree = ttk.Treeview(
             self,
@@ -51,8 +56,8 @@ class SearchPanelFrame(ttk.Frame):
         self.tree.column("size", width=100, anchor="e")
         self.tree.column("modified", width=150, anchor="w")
 
-        search_scroll = AutoScrollbar(self, orient="vertical", command=self.tree.yview)
-        search_scroll_x = AutoScrollbar(self, orient="horizontal", command=self.tree.xview)
+        search_scroll = AutoScrollbar(self, orient="vertical", command=self.tree.yview)  # type: ignore
+        search_scroll_x = AutoScrollbar(self, orient="horizontal", command=self.tree.xview)  # type: ignore
         
         self.tree.grid(row=1, column=0, sticky="nsew")
         search_scroll.grid(row=1, column=1, sticky="ns")
@@ -60,7 +65,8 @@ class SearchPanelFrame(ttk.Frame):
         
         self.tree.configure(yscrollcommand=search_scroll.set, xscrollcommand=search_scroll_x.set)
         
-        self.tree.bind("<Double-1>", lambda _e: callbacks.get("open_search_result")() if callbacks.get("open_search_result") else None)
+        open_search_cmd = get_cmd("open_search_result")
+        self.tree.bind("<Double-1>", lambda _e: open_search_cmd())
 
     def clear(self) -> None:
         self.tree.delete(*self.tree.get_children())

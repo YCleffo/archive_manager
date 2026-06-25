@@ -5,6 +5,7 @@ import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
+from typing import Any, Callable
 
 from .archive_utils import create_zip_archive, extract_archive, is_supported_archive, list_archive_members
 from .file_utils import (
@@ -20,7 +21,7 @@ from .file_utils import (
 )
 from .search_utils import SearchResult, search_files
 
-from .ui.scroll import _on_shift_scroll_global
+from .ui.scroll import on_shift_scroll_global
 from .ui.preview import ArchivePreviewWindow
 from .ui.toolbar import ToolbarFrame
 from .ui.file_browser import FileBrowserFrame
@@ -43,9 +44,9 @@ class ArchiveManagerApp(tk.Tk):
         self._build_widgets()
         self._bind_events()
 
-        self.bind_all("<Shift-MouseWheel>", _on_shift_scroll_global)
-        self.bind_all("<Shift-Button-4>", _on_shift_scroll_global)
-        self.bind_all("<Shift-Button-5>", _on_shift_scroll_global)
+        self.bind_all("<Shift-MouseWheel>", on_shift_scroll_global)
+        self.bind_all("<Shift-Button-4>", on_shift_scroll_global)
+        self.bind_all("<Shift-Button-5>", on_shift_scroll_global)
 
         self.load_directory(self.current_path, add_history=False)
 
@@ -79,7 +80,7 @@ class ArchiveManagerApp(tk.Tk):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
 
-        callbacks = {
+        callbacks: dict[str, Callable[..., Any]] = {
             "go_back": self.go_back,
             "go_up": self.go_up,
             "go_home": self.go_home,

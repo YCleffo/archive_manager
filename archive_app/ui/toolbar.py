@@ -22,7 +22,7 @@ class ToolbarFrame(ttk.Frame):
         self.toolbar_canvas = tk.Canvas(toolbar_container, height=44, highlightthickness=0, bg=bg_color)
         self.toolbar_canvas.grid(row=0, column=0, sticky="ew")
 
-        toolbar_scroll = AutoScrollbar(toolbar_container, orient="horizontal", command=self.toolbar_canvas.xview)
+        toolbar_scroll = AutoScrollbar(toolbar_container, orient="horizontal", command=self.toolbar_canvas.xview)  # type: ignore
         toolbar_scroll.grid(row=1, column=0, sticky="ew")
         self.toolbar_canvas.configure(xscrollcommand=toolbar_scroll.set)
 

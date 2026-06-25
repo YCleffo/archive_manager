@@ -20,8 +20,8 @@ class ArchivePreviewWindow(tk.Toplevel):
         text_widget.configure(state="disabled")
         text_widget.grid(row=0, column=0, sticky="nsew")
         
-        scroll_y = AutoScrollbar(frame, orient="vertical", command=text_widget.yview)
-        scroll_x = AutoScrollbar(frame, orient="horizontal", command=text_widget.xview)
+        scroll_y = AutoScrollbar(frame, orient="vertical", command=text_widget.yview)  # type: ignore
+        scroll_x = AutoScrollbar(frame, orient="horizontal", command=text_widget.xview)  # type: ignore
         scroll_y.grid(row=0, column=1, sticky="ns")
         scroll_x.grid(row=1, column=0, sticky="ew")
         text_widget.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)

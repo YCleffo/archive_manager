@@ -3,17 +3,17 @@ import tkinter as tk
 from tkinter import ttk
 
 class AutoScrollbar(ttk.Scrollbar):
-    def set(self, low: str, high: str) -> None:
-        if float(low) <= 0.0 and float(high) >= 1.0:
+    def set(self, first: float | str, last: float | str) -> None:
+        if float(first) <= 0.0 and float(last) >= 1.0:
             self.grid_remove()
         else:
             try:
                 self.grid()
             except tk.TclError:
                 pass
-        super().set(low, high)
+        super().set(first, last)
 
-def _on_shift_scroll_global(event: tk.Event) -> None:
+def on_shift_scroll_global(event: tk.Event) -> None:
     widget = event.widget
     while widget:
         if isinstance(widget, (tk.Canvas, ttk.Treeview, tk.Text)):

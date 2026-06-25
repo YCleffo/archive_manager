@@ -1,12 +1,12 @@
 import tkinter as tk
 from tkinter import ttk
-from typing import Callable, Optional
+from typing import Callable, Optional, Any
 from pathlib import Path
 from .scroll import AutoScrollbar
-from ..file_utils import format_modified, format_size
+from ..file_utils import format_modified, format_size, FileEntry
 
 class FileBrowserFrame(ttk.Frame):
-    def __init__(self, master: tk.Misc, callbacks: dict[str, Callable]) -> None:
+    def __init__(self, master: tk.Misc, callbacks: dict[str, Callable[..., Any]]) -> None:
         super().__init__(master)
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
@@ -28,8 +28,8 @@ class FileBrowserFrame(ttk.Frame):
         self.tree.column("size", width=120, anchor="e")
         self.tree.column("modified", width=160, anchor="w")
 
-        file_scroll = AutoScrollbar(self, orient="vertical", command=self.tree.yview)
-        file_scroll_x = AutoScrollbar(self, orient="horizontal", command=self.tree.xview)
+        file_scroll = AutoScrollbar(self, orient="vertical", command=self.tree.yview)  # type: ignore
+        file_scroll_x = AutoScrollbar(self, orient="horizontal", command=self.tree.xview)  # type: ignore
         
         self.tree.grid(row=0, column=0, sticky="nsew")
         file_scroll.grid(row=0, column=1, sticky="ns")
@@ -37,22 +37,27 @@ class FileBrowserFrame(ttk.Frame):
         
         self.tree.configure(yscrollcommand=file_scroll.set, xscrollcommand=file_scroll_x.set)
 
-        self.context_menu = tk.Menu(self, tearoff=False)
-        self.context_menu.add_command(label="Открыть", command=callbacks.get("open_selected"))
-        self.context_menu.add_command(label="Показать содержимое архива", command=callbacks.get("show_archive_contents"))
-        self.context_menu.add_separator()
-        self.context_menu.add_command(label="Создать ZIP", command=callbacks.get("create_zip_from_selection"))
-        self.context_menu.add_command(label="Распаковать", command=callbacks.get("extract_selected_archive"))
-        self.context_menu.add_separator()
-        self.context_menu.add_command(label="Копировать", command=callbacks.get("copy_selected"))
-        self.context_menu.add_command(label="Переместить", command=callbacks.get("move_selected"))
-        self.context_menu.add_command(label="Переименовать", command=callbacks.get("rename_selected"))
-        self.context_menu.add_command(label="Удалить", command=callbacks.get("delete_selected"))
-        self.context_menu.add_separator()
-        self.context_menu.add_command(label="Размер папки", command=callbacks.get("calculate_selected_size"))
+        def get_cmd(name: str) -> Callable[[], Any]:
+            cmd = callbacks.get(name)
+            return cmd if cmd is not None else lambda: None
 
-        self.tree.bind("<Double-1>", lambda _e: callbacks.get("open_selected")() if callbacks.get("open_selected") else None)
-        self.tree.bind("<Return>", lambda _e: callbacks.get("open_selected")() if callbacks.get("open_selected") else None)
+        self.context_menu = tk.Menu(self, tearoff=False)
+        self.context_menu.add_command(label="Открыть", command=get_cmd("open_selected"))
+        self.context_menu.add_command(label="Показать содержимое архива", command=get_cmd("show_archive_contents"))
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Создать ZIP", command=get_cmd("create_zip_from_selection"))
+        self.context_menu.add_command(label="Распаковать", command=get_cmd("extract_selected_archive"))
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Копировать", command=get_cmd("copy_selected"))
+        self.context_menu.add_command(label="Переместить", command=get_cmd("move_selected"))
+        self.context_menu.add_command(label="Переименовать", command=get_cmd("rename_selected"))
+        self.context_menu.add_command(label="Удалить", command=get_cmd("delete_selected"))
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Размер папки", command=get_cmd("calculate_selected_size"))
+
+        open_cmd = get_cmd("open_selected")
+        self.tree.bind("<Double-1>", lambda _e: open_cmd())
+        self.tree.bind("<Return>", lambda _e: open_cmd())
         self.tree.bind("<Button-3>", self.show_context_menu)
 
     def show_context_menu(self, event: tk.Event) -> None:
@@ -71,7 +76,7 @@ class FileBrowserFrame(ttk.Frame):
     def clear(self) -> None:
         self.tree.delete(*self.tree.get_children())
 
-    def insert_entry(self, entry) -> None:
+    def insert_entry(self, entry: "FileEntry") -> None:
         icon_name = "[Папка] " + entry.name if entry.is_dir else "[Файл] " + entry.name
         self.tree.insert(
             "",
